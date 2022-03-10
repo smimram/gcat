@@ -1,7 +1,8 @@
 (** A term. *)
 type t =
   | Var of string
-  | Comp of t list (** A composite morphism. *)
+  | Id of t
+  | Comp of t * t
   | Cons of string * t list (** A constructor. *)
 
 type term = t
@@ -19,10 +20,6 @@ module Type = struct
     | Hom of term * term (** A morphism. *)
     | Eq of term * term (** An equality between parallel morphisms. *)
     | Cons of string * term list (** A constructor. *)
-
-  let conv (a : t) (b : t) =
-    (* TODO: recursively use convertibility on terms *)
-    a = b
 end
 
 (** A context. *)
@@ -63,10 +60,10 @@ let term_constructors : (string * (context * Type.t)) list =
        "g", Hom (Var "x", Var "z");
        "p", Cons ("prod", [Var "y"; Var "z"])],
       Eq (
-        Comp [
-          Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]);
+        Comp (
+          Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]),
           Cons ("fst", [Var "y"; Var "z"; Var "p"])
-        ],
+        ),
         Var "f"
       )
     );
@@ -76,10 +73,10 @@ let term_constructors : (string * (context * Type.t)) list =
        "g", Hom (Var "x", Var "z");
        "p", Cons ("prod", [Var "y"; Var "z"])],
       Eq (
-        Comp [
-          Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]);
+        Comp (
+          Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]),
           Cons ("snd", [Var "y"; Var "z"; Var "p"])
-        ],
+        ),
         Var "g"
       )
     );
@@ -96,19 +93,21 @@ let term_constructors : (string * (context * Type.t)) list =
 
 exception Typing
 
+(** The subtyping relation. *)
+let ( <: ) (a : Type.t) (b : Type.t) =
+  (* TODO: recursively use convertibility on terms *)
+  match a, b with
+  | a, b when a = b -> ()
+  | Cons (c, _), Obj when List.mem_assoc c obj_constructors -> ()
+  | _ -> raise Typing
+
 (** Ensure that we have a type. *)
 let rec check_type env (a : Type.t) =
   match a with
   | Obj -> ()
   | Hom (t, u) ->
-    let check_obj t =
-      match infer env t with
-      | Obj -> ()
-      | Cons (c, _) when List.mem_assoc c obj_constructors -> ()
-      | _ -> raise Typing
-    in
-    check_obj t;
-    check_obj u
+    infer env t <: Obj;
+    infer env u <: Obj
   | Eq (f, g) ->
     (
       match infer env f, infer env g with
@@ -119,8 +118,9 @@ let rec check_type env (a : Type.t) =
     let a = match List.assoc_opt c type_constructors with Some a -> a | None -> raise Typing in
     List.iter2 (fun t a -> check env t a) l a
 
+(** Check that a term has a given type. *)
 and check env t a =
-  if not (Type.conv (infer env t) a) then raise Typing
+  infer env t <: a
 
 (** Infer the type of a term. *)
 and infer env (t : t) : Type.t =
@@ -131,5 +131,15 @@ and infer env (t : t) : Type.t =
       | Some a -> a
       | None -> raise Typing
     )
-  | Comp l ->
+  | Id t ->
+    infer env t <: Obj;
+    Hom (t, t)
+  | Comp (t, u) ->
+    (
+      match infer env t, infer env u with
+      | Hom (a, b), Hom (b', c) when conv b b' -> Hom (a, c)
+      | _ -> raise Typing
+    )
   | Cons (c, l) ->
+    let e, a = match List.assoc_opt c term_constructors with Some ea -> ea | None -> raise Typing in
+    let env', s = List.fold_left2 (fun s t (x, a) -> check env ) (env, []) l e in
