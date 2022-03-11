@@ -1,2 +1,3 @@
 cons terminal <: *
-cons tarr (x : *) : x -> terminal()
+cons tarr (x : *) (t : terminal()) : x -> t
+cons tarr-eta (x : *) (t : terminal()) (f : x -> t) : f == tarr(x,t)

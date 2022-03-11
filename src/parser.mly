@@ -2,7 +2,7 @@
 %}
 
 %token LPAR RPAR
-%token OBJ TO
+%token OBJ TO EQUALS
 %token CONS COLON LCOLON COMMA
 %token<string> IDENT
 %token EOF
@@ -29,6 +29,8 @@ args:
 typ:
    | OBJ { Obj }
    | term TO term { Hom ($1, $3) }
+   | IDENT LPAR terms RPAR { Cons ($1, $3) }
+   | term EQUALS term { Eq ($1, $3) }
 
 term:
    | IDENT { Var $1 }

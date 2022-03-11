@@ -13,13 +13,14 @@ rule token = parse
   | "(" { LPAR }
   | ")" { RPAR }
   | "," { COMMA }
+  | "==" { EQUALS }
   | "cons" { CONS }
   | "*" { OBJ }
   | "→" { utf8 lexbuf; TO }
   | "->" { TO }
   | "<:" { LCOLON }
   | ":" { COLON }
-  | (['A'-'Z''a'-'z']+ as s) { IDENT s }
+  | (['A'-'Z''a'-'z''-']+ as s) { IDENT s }
   | "--"[^'\n']* { token lexbuf }
   | space+ { token lexbuf }
   | "\n" { new_line lexbuf; token lexbuf }

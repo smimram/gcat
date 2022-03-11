@@ -7,6 +7,12 @@ type t =
 
 type term = t
 
+let rec to_string = function
+  | Var x -> x
+  | Id t -> Printf.sprintf "id(%s)" (to_string t)
+  | Comp (t, u) -> Printf.sprintf "%s; %s" (to_string t) (to_string u)
+  | Cons (c, l) -> Printf.sprintf "%s(%s)" c (List.map to_string l |> String.concat ", ")
+
 (** Equality on terms. *)
 let conv (t : t) (u : t) =
   (* Handle axioms of categories. *)
@@ -37,6 +43,14 @@ module Type = struct
     | Hom of term * term (** A morphism. *)
     | Eq of term * term (** An equality between parallel morphisms. *)
     | Cons of string * term list (** A constructor. *)
+
+  let string_of_term = to_string
+
+  let to_string = function
+    | Obj -> "*"
+    | Hom (a, b) -> Printf.sprintf "%s -> %s" (string_of_term a) (string_of_term b)
+    | Eq (a, b) -> Printf.sprintf "%s == %s" (string_of_term a) (string_of_term b)
+    | Cons (c, _) -> Printf.sprintf "%s(...)" c
 
   let subst (s : subst) = function
     | Obj -> Obj
@@ -144,7 +158,9 @@ let rec check_type env (a : Type.t) =
     (
       match infer env f, infer env g with
       | Hom (a, b), Hom (a', b') when conv a a' && conv b b' -> ()
-      | _ -> raise Typing
+      | a, b ->
+        Printf.printf "equality between %s and %s\n%!" (Type.to_string a) (Type.to_string b);
+        raise Typing
     )
   | Cons (c, l) ->
     let a = match List.assoc_opt c !type_constructors with Some a -> a | None -> raise Typing in
@@ -189,7 +205,11 @@ module Decl = struct
       check_type env a;
       type_constructors := (c,(l,a)) :: !type_constructors;
       env
-    | Term _ -> assert false
+    | Term (c, l, a) ->
+      let env = List.fold_left (fun env (x, a) -> check_type env a; (x,a)::env) env l in
+      check_type env a;
+      term_constructors := (c,(l,a)) :: !term_constructors;
+      env
 
   module List = struct
     let check env d =
