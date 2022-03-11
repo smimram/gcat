@@ -51,13 +51,11 @@ type context = (string * Type.t) list
 (** Similar to a context but we can use constructors there. *)
 type pattern = (t * Type.t) list
 
-(** Object constructors: these are types which can be casted as objects. *)
-let obj_constructors : (string * Type.t list) list =
+(** Type constructors with given parameters and type to which they can be casted. *)
+let type_constructors : (string * (context * Type.t)) list =
   [
-    ("prod", [Obj; Obj])
+    "prod", (["x", Obj; "y", Obj], Obj)
   ]
-
-let type_constructors = obj_constructors
 
 (** Term constructors. *)
 let term_constructors : (string * (context * Type.t)) list =
@@ -114,14 +112,21 @@ let term_constructors : (string * (context * Type.t)) list =
     )
   ]
 
+(** Raise on typing error. *)
 exception Typing
 
 (** The subtyping relation. *)
-let ( <: ) (a : Type.t) (b : Type.t) =
+let rec ( <: ) (a : Type.t) (b : Type.t) =
   (* TODO: recursively use convertibility on terms *)
   match a, b with
   | a, b when a = b -> ()
-  | Cons (c, _), Obj when List.mem_assoc c obj_constructors -> ()
+  | Cons (c, l), b ->
+    (
+      let p, a = List.assoc c type_constructors in
+      let s = List.map2 (fun t (x, _) -> x, t) l p in
+      let a = Type.subst s a in
+      a <: b
+    )
   | _ -> raise Typing
 
 (** Ensure that we have a type. *)
@@ -139,7 +144,7 @@ let rec check_type env (a : Type.t) =
     )
   | Cons (c, l) ->
     let a = match List.assoc_opt c type_constructors with Some a -> a | None -> raise Typing in
-    List.iter2 (fun t a -> check env t a) l a
+    List.iter2 (fun t (_,a) -> check env t a) l (fst a)
 
 (** Check that a term has a given type. *)
 and check env t a =
