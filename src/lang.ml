@@ -7,11 +7,28 @@ type t =
 
 type term = t
 
-
 (** Equality on terms. *)
 let conv (t : t) (u : t) =
-  (* TODO: normalize comp *)
-  t = u
+  (* Handle axioms of categories. *)
+  let rec normalize = function
+    | Comp (Id _, u) -> normalize u
+    | Comp (t, Id _) -> normalize t
+    | Comp (Comp (t, u), v) -> normalize (Comp (t, Comp (u, v)))
+    | Cons (c, l) -> Cons (c, List.map normalize l)
+    | t -> t
+  in
+  normalize t = normalize u
+
+(** A substitution. *)
+type subst = (string * t) list
+
+(** Apply a substitution. *)
+let rec subst (s : subst) = function
+  | Var x when List.mem_assoc x s -> List.assoc x s
+  | Var _ as t -> t
+  | Id t -> Id (subst s t)
+  | Comp (t, u) -> Comp (subst s t, subst s u)
+  | Cons (c, l) -> Cons (c, List.map (subst s) l)
 
 module Type = struct
   (** A type. *)
@@ -20,6 +37,12 @@ module Type = struct
     | Hom of term * term (** A morphism. *)
     | Eq of term * term (** An equality between parallel morphisms. *)
     | Cons of string * term list (** A constructor. *)
+
+  let subst (s : subst) = function
+    | Obj -> Obj
+    | Hom (t, u) -> Hom (subst s t, subst s u)
+    | Eq (t, u) -> Eq (subst s t, subst s u)
+    | Cons (c, l) -> Cons (c, List.map (subst s) l)
 end
 
 (** A context. *)
@@ -142,4 +165,5 @@ and infer env (t : t) : Type.t =
     )
   | Cons (c, l) ->
     let e, a = match List.assoc_opt c term_constructors with Some ea -> ea | None -> raise Typing in
-    let env', s = List.fold_left2 (fun s t (x, a) -> check env ) (env, []) l e in
+    let _, s = List.fold_left2 (fun (env,s) t (x, a) -> infer env t <: a; (x,a)::env, (x,t)::s) (env, []) l e in
+    Type.subst s a
