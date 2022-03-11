@@ -57,6 +57,8 @@ let type_constructors : (string * (context * Type.t)) list =
     "prod", (["x", Obj; "y", Obj], Obj)
   ]
 
+let type_constructors = ref type_constructors
+
 (** Term constructors. *)
 let term_constructors : (string * (context * Type.t)) list =
   [
@@ -112,6 +114,8 @@ let term_constructors : (string * (context * Type.t)) list =
     )
   ]
 
+let term_constructors = ref term_constructors
+
 (** Raise on typing error. *)
 exception Typing
 
@@ -122,7 +126,7 @@ let rec ( <: ) (a : Type.t) (b : Type.t) =
   | a, b when a = b -> ()
   | Cons (c, l), b ->
     (
-      let p, a = List.assoc c type_constructors in
+      let p, a = List.assoc c !type_constructors in
       let s = List.map2 (fun t (x, _) -> x, t) l p in
       let a = Type.subst s a in
       a <: b
@@ -143,7 +147,7 @@ let rec check_type env (a : Type.t) =
       | _ -> raise Typing
     )
   | Cons (c, l) ->
-    let a = match List.assoc_opt c type_constructors with Some a -> a | None -> raise Typing in
+    let a = match List.assoc_opt c !type_constructors with Some a -> a | None -> raise Typing in
     List.iter2 (fun t (_,a) -> check env t a) l (fst a)
 
 (** Check that a term has a given type. *)
@@ -169,6 +173,26 @@ and infer env (t : t) : Type.t =
       | _ -> raise Typing
     )
   | Cons (c, l) ->
-    let e, a = match List.assoc_opt c term_constructors with Some ea -> ea | None -> raise Typing in
+    let e, a = match List.assoc_opt c !term_constructors with Some ea -> ea | None -> raise Typing in
     let _, s = List.fold_left2 (fun (env,s) t (x, a) -> infer env t <: a; (x,a)::env, (x,t)::s) (env, []) l e in
     Type.subst s a
+
+(** Declarations. *)
+module Decl = struct
+  type t =
+    | Type of string * context * Type.t
+    | Term of string * context * Type.t
+
+  let check (env : context) : t -> context = function
+    | Type (c, l, a) ->
+      let env = List.fold_left (fun env (x, a) -> check_type env a; (x,a)::env) env l in
+      check_type env a;
+      type_constructors := (c,(l,a)) :: !type_constructors;
+      env
+    | Term _ -> assert false
+
+  module List = struct
+    let check env d =
+      List.fold_left check env d
+  end
+end

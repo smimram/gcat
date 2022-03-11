@@ -1,5 +1,5 @@
 all:
-	@dune exec ./prover.exe
+	@dune exec ./prover.exe test.gcat
 
 clean:
 	@dune clean

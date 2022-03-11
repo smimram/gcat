@@ -1,0 +1,2 @@
+cons terminal <: *
+cons tarr (x : *) : x -> terminal()

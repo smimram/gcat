@@ -10,8 +10,15 @@ let utf8 ?(n=1) lexbuf =
 let space = ' ' | '\t' | '\r'
 
 rule token = parse
+  | "(" { LPAR }
+  | ")" { RPAR }
+  | "," { COMMA }
+  | "cons" { CONS }
+  | "*" { OBJ }
   | "→" { utf8 lexbuf; TO }
   | "->" { TO }
+  | "<:" { LCOLON }
+  | ":" { COLON }
   | (['A'-'Z''a'-'z']+ as s) { IDENT s }
   | "--"[^'\n']* { token lexbuf }
   | space+ { token lexbuf }
