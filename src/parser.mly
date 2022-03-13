@@ -2,10 +2,12 @@
 %}
 
 %token LPAR RPAR
-%token OBJ TO EQUALS
+%token OBJ TO EQUALS SC
 %token CONS COLON LCOLON COMMA
 %token<string> IDENT
 %token EOF
+
+%right SC
 
 %start main
 %type<Lang.Decl.t list> main
@@ -35,6 +37,7 @@ typ:
 term:
    | IDENT { Var $1 }
    | IDENT LPAR terms RPAR { Cons ($1, $3) }
+   | term SC term { Comp ($1, $3) }
 
 terms:
    | { [] }

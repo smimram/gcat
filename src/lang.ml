@@ -65,6 +65,7 @@ type context = (string * Type.t) list
 (** Similar to a context but we can use constructors there. *)
 type pattern = (t * Type.t) list
 
+(*
 (** Type constructors with given parameters and type to which they can be casted. *)
 let type_constructors : (string * (context * Type.t)) list =
   [
@@ -129,9 +130,13 @@ let term_constructors : (string * (context * Type.t)) list =
   ]
 
 let term_constructors = ref term_constructors
+*)
+
+let type_constructors = ref []
+let term_constructors = ref []
 
 (** Raise on typing error. *)
-exception Typing
+exception Typing of string
 
 (** The subtyping relation. *)
 let rec ( <: ) (a : Type.t) (b : Type.t) =
@@ -145,7 +150,7 @@ let rec ( <: ) (a : Type.t) (b : Type.t) =
       let a = Type.subst s a in
       a <: b
     )
-  | _ -> raise Typing
+  | _ -> raise (Typing "")
 
 (** Ensure that we have a type. *)
 let rec check_type env (a : Type.t) =
@@ -159,11 +164,10 @@ let rec check_type env (a : Type.t) =
       match infer env f, infer env g with
       | Hom (a, b), Hom (a', b') when conv a a' && conv b b' -> ()
       | a, b ->
-        Printf.printf "equality between %s and %s\n%!" (Type.to_string a) (Type.to_string b);
-        raise Typing
+        raise (Typing (Printf.sprintf "equality between elements of types %s and %s%!" (Type.to_string a) (Type.to_string b)));
     )
   | Cons (c, l) ->
-    let a = match List.assoc_opt c !type_constructors with Some a -> a | None -> raise Typing in
+    let a = match List.assoc_opt c !type_constructors with Some a -> a | None -> raise (Typing "") in
     List.iter2 (fun t (_,a) -> check env t a) l (fst a)
 
 (** Check that a term has a given type. *)
@@ -177,7 +181,7 @@ and infer env (t : t) : Type.t =
     (
       match List.assoc_opt x env with
       | Some a -> a
-      | None -> raise Typing
+      | None -> raise (Typing (Printf.sprintf "Variable not found: %s." x))
     )
   | Id t ->
     infer env t <: Obj;
@@ -186,10 +190,10 @@ and infer env (t : t) : Type.t =
     (
       match infer env t, infer env u with
       | Hom (a, b), Hom (b', c) when conv b b' -> Hom (a, c)
-      | _ -> raise Typing
+      | _ -> raise (Typing "")
     )
   | Cons (c, l) ->
-    let e, a = match List.assoc_opt c !term_constructors with Some ea -> ea | None -> raise Typing in
+    let e, a = match List.assoc_opt c !term_constructors with Some ea -> ea | None -> raise (Typing "") in
     let _, s = List.fold_left2 (fun (env,s) t (x, a) -> infer env t <: a; (x,a)::env, (x,t)::s) (env, []) l e in
     Type.subst s a
 
@@ -209,7 +213,7 @@ module Decl = struct
       let env = List.fold_left (fun env (x, a) -> check_type env a; (x,a)::env) env l in
       check_type env a;
       term_constructors := (c,(l,a)) :: !term_constructors;
-      env
+      (c,a)::env
 
   module List = struct
     let check env d =
