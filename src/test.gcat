@@ -1,9 +1,3 @@
-cons terminal <: *
-cons tarr (x : *) (t : terminal()) : x -> t
-cons tarr-eta (x : *) (t : terminal()) (f : x -> t) : f == tarr(x,t)
+terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr}
 
-cons prod (x : *) (y : *) <: *
-cons fst (x : *) (y : *) (p : prod(x,y)) : p -> x
-cons snd (x : *) (y : *) (p : prod(x,y)) : p -> y
-cons pairing (x : *) (y : *) (z : *) (f : x -> y) (g : x -> z) (p : prod(x,y)) : x -> p
-cons pairing-beta-l (x : *) (y : *) (z : *) (f : x -> y) (g : x -> z) (p : prod(x,y)) : pairing(x,y,z,f,g,p);fst == f
+-- iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : (x : *) => g;f = id(x), retr : (x : *) = f;g = id(x)}

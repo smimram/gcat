@@ -1,10 +1,10 @@
-type pos = unit
+type pos = Lexing.position * Lexing.position
 
 (** Terms. *)
 module Term = struct
   type t =
     {
-      pos : pos;
+      pos : pos option;
       term : term
     }
 
@@ -16,21 +16,34 @@ module Term = struct
     | Obj (** An object. *)
     | Hom of t * t (** A morphism. *)
     | Eq of t * t (** An equality between parallel morphisms. *)
-    | Sigma of t * (string * t) list (** A sigma type. *)
+    | Fun of string * t * t
+    | Pi of string * t * t (** A pi type. *)
+    | Sigma of string * t * (string * t) list (** A sigma type. *)
     | Record of t * (string * t) list
     | Type
+
+  let make pos term =
+    let pos = Some pos in
+    { pos; term }
+
+  let pi pos args b =
+    let rec aux = function
+      | [] -> b
+      | (x,a)::l -> make pos (Pi (x, a, aux l))
+    in
+    aux args
+
+  let fct pos args t =
+    let rec aux = function
+      | [] -> t
+      | (x,a)::l -> make pos (Fun (x, a, aux l))
+    in
+    aux args
 end
 
-type t =
-  | Var of string
-  | Id of t
-  | Comp of t list
-  | Cons of string * t list
-  | Obj
-  | Hom of t * t
-  | Eq of t * t
-  | Sigma of t * (string * t) list
-  | Type
+type t = Term.t
+
+let make term : t = { pos = None; term }
 
 (* let rec to_string t = *)
   (* match t.term with *)
@@ -50,7 +63,7 @@ type context = (string * t) list
 (** An environment. *)
 type environment = (string * t) list
 
-exception Typing of pos * string
+exception Typing of pos option * string
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) : Term.t =
   match t.term, a with
@@ -62,6 +75,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) : Term.t =
 and infer env tenv t : Term.t * t =
   match t.term with
   | Type -> raise (Typing (t.pos, "Trying to type Type."))
+  | _ -> ignore env; ignore tenv; assert false
 
 (*
 (** A substitution. *)
@@ -187,3 +201,15 @@ module Decl = struct
   end
 end
 *)
+
+module Decl = struct
+  (** A declaration: name, type, value. *)
+  type t = string * Term.t * Term.t
+
+  let check d =
+    let check env tenv (x, a, t) =
+      let t = check env tenv t a in
+      ((x,t)::env), ((x,a)::tenv)
+    in
+    ignore (List.fold_left (fun (env,tenv) -> check env tenv) ([],[]) d)
+end

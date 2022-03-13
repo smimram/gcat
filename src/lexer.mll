@@ -12,13 +12,16 @@ let space = ' ' | '\t' | '\r'
 rule token = parse
   | "(" { LPAR }
   | ")" { RPAR }
+  | "{" { LACC }
+  | "}" { RACC }
+  | "|" { PIPE }
   | "," { COMMA }
+  | "=>" { IMP }
+  | "=" { EQ }
   | "==" { EQUALS }
-  | "cons" { CONS }
   | "*" { OBJ }
   | "→" { utf8 lexbuf; TO }
   | "->" { TO }
-  | "<:" { LCOLON }
   | ":" { COLON }
   | ";" { SC }
   | (['A'-'Z''a'-'z''-']+ as s) { IDENT s }
