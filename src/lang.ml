@@ -4,7 +4,7 @@ type pos = Lexing.position * Lexing.position
 module Term = struct
   type t =
     {
-      pos : pos option;
+      pos : pos;
       term : term
     }
 
@@ -22,9 +22,7 @@ module Term = struct
     | Record of t * (string * t) list
     | Type
 
-  let make pos term =
-    let pos = Some pos in
-    { pos; term }
+  let make pos term = { pos; term }
 
   let pi pos args b =
     let rec aux = function
@@ -41,32 +39,58 @@ module Term = struct
     aux args
 end
 
-type t = Term.t
+type t =
+  | Id of t
+  | Comp of t list
+  | Obj
+  | Hom of t * t
+  | Eq of t * t
+  | Fun of string * environment * Term.t
+  | Pi of string * t * environment * Term.t
+  | Sigma of string * t * (string * t) list
+  | Record of t * (string * t) list
+  | Type
 
-let make term : t = { pos = None; term }
+(** An environment. *)
+and environment = (string * t) list
 
-(* let rec to_string t = *)
-  (* match t.term with *)
-  (* | Var x -> x *)
-  (* | Id t -> Printf.sprintf "id(%s)" (to_string t) *)
-  (* | Comp (t, u) -> Printf.sprintf "%s; %s" (to_string t) (to_string u) *)
-  (* | Cons (c, l) -> Printf.sprintf "%s(%s)" c (List.map to_string l |> String.concat ", ") *)
-(* | Obj -> "*" *)
+(** A typing context. *)
+type context = (string * t) list
+
+(** Evaluate a term to a value. *)
+let rec eval (env : environment) (t : Term.t) : t =
+  match t.term with
+  | Var x -> List.assoc x env
+  | Id t -> Id (eval env t)
+  | Comp (t, u) ->
+    (
+      match eval env t, eval env u with
+      | Id _, u -> u
+      | t, Id _ -> t
+      | Comp l, Comp l' -> Comp (l@l')
+      | Comp l, u -> Comp (l@[u])
+      | t, Comp l -> Comp (t::l)
+      | t, u -> Comp [t;u]
+    )
+  | Obj -> Obj
+  | Hom (t, u) -> Hom (eval env t, eval env u)
+  | Eq (t, u) -> Eq (eval env t, eval env u)
+  | Fun (x, _, t) -> Fun (x, env, t)
+  | Pi (x, a, b) -> Pi (x, eval env a, env, b)
+  | Sigma (x, a, l) -> Sigma (x, eval env a, List.map (fun (l, a) -> l, eval env a) l)
+  | Record (t, l) -> Record (eval env t, List.map (fun (l, t) -> l, eval env t) l)
+  | Type -> Type
+
 
 (** Convertibility of terms. *)
 let conv (t:t) (u:t) =
   t = u
 
-(** A typing context. *)
-type context = (string * t) list
-
-(** An environment. *)
-type environment = (string * t) list
-
-exception Typing of pos option * string
+exception Typing of pos * string
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) : Term.t =
   match t.term, a with
+  (* | Fun (x, a, t)  *)
   | _ ->
     let t', a' = infer env tenv t in
     if not (conv a a') then raise (Typing (t.pos, "..."));
@@ -74,7 +98,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) : Term.t =
 
 and infer env tenv t : Term.t * t =
   match t.term with
-  | Type -> raise (Typing (t.pos, "Trying to type Type."))
+  | Type -> t, Type
   | _ -> ignore env; ignore tenv; assert false
 
 (*
@@ -207,8 +231,11 @@ module Decl = struct
   type t = string * Term.t * Term.t
 
   let check d =
-    let check env tenv (x, a, t) =
+    let check env tenv ((x, a, t) : t) =
+      let a = check env tenv a Type in
+      let a = eval env a in
       let t = check env tenv t a in
+      let t = eval env t in
       ((x,t)::env), ((x,a)::tenv)
     in
     ignore (List.fold_left (fun (env,tenv) -> check env tenv) ([],[]) d)
