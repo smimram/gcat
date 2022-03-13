@@ -1,30 +1,69 @@
-(** A term. *)
+type pos = unit
+
+(** Terms. *)
+module Term = struct
+  type t =
+    {
+      pos : pos;
+      term : term
+    }
+
+  and term =
+    | Var of string
+    | Id of t
+    | Comp of t * t
+    (* | Cons of string * t list (\** A constructor. *\) *)
+    | Obj (** An object. *)
+    | Hom of t * t (** A morphism. *)
+    | Eq of t * t (** An equality between parallel morphisms. *)
+    | Sigma of t * (string * t) list (** A sigma type. *)
+    | Record of t * (string * t) list
+    | Type
+end
+
 type t =
   | Var of string
   | Id of t
-  | Comp of t * t
-  | Cons of string * t list (** A constructor. *)
+  | Comp of t list
+  | Cons of string * t list
+  | Obj
+  | Hom of t * t
+  | Eq of t * t
+  | Sigma of t * (string * t) list
+  | Type
 
-type term = t
+(* let rec to_string t = *)
+  (* match t.term with *)
+  (* | Var x -> x *)
+  (* | Id t -> Printf.sprintf "id(%s)" (to_string t) *)
+  (* | Comp (t, u) -> Printf.sprintf "%s; %s" (to_string t) (to_string u) *)
+  (* | Cons (c, l) -> Printf.sprintf "%s(%s)" c (List.map to_string l |> String.concat ", ") *)
+(* | Obj -> "*" *)
 
-let rec to_string = function
-  | Var x -> x
-  | Id t -> Printf.sprintf "id(%s)" (to_string t)
-  | Comp (t, u) -> Printf.sprintf "%s; %s" (to_string t) (to_string u)
-  | Cons (c, l) -> Printf.sprintf "%s(%s)" c (List.map to_string l |> String.concat ", ")
+(** Convertibility of terms. *)
+let conv (t:t) (u:t) =
+  t = u
 
-(** Equality on terms. *)
-let conv (t : t) (u : t) =
-  (* Handle axioms of categories. *)
-  let rec normalize = function
-    | Comp (Id _, u) -> normalize u
-    | Comp (t, Id _) -> normalize t
-    | Comp (Comp (t, u), v) -> normalize (Comp (t, Comp (u, v)))
-    | Cons (c, l) -> Cons (c, List.map normalize l)
-    | t -> t
-  in
-  normalize t = normalize u
+(** A typing context. *)
+type context = (string * t) list
 
+(** An environment. *)
+type environment = (string * t) list
+
+exception Typing of pos * string
+
+let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) : Term.t =
+  match t.term, a with
+  | _ ->
+    let t', a' = infer env tenv t in
+    if not (conv a a') then raise (Typing (t.pos, "..."));
+    t'
+
+and infer env tenv t : Term.t * t =
+  match t.term with
+  | Type -> raise (Typing (t.pos, "Trying to type Type."))
+
+(*
 (** A substitution. *)
 type subst = (string * t) list
 
@@ -58,79 +97,6 @@ module Type = struct
     | Eq (t, u) -> Eq (subst s t, subst s u)
     | Cons (c, l) -> Cons (c, List.map (subst s) l)
 end
-
-(** A context. *)
-type context = (string * Type.t) list
-
-(** Similar to a context but we can use constructors there. *)
-type pattern = (t * Type.t) list
-
-(*
-(** Type constructors with given parameters and type to which they can be casted. *)
-let type_constructors : (string * (context * Type.t)) list =
-  [
-    "prod", (["x", Obj; "y", Obj], Obj)
-  ]
-
-let type_constructors = ref type_constructors
-
-(** Term constructors. *)
-let term_constructors : (string * (context * Type.t)) list =
-  [
-    "fst", (
-      ["x", Obj; "y", Obj; "p", Cons ("prod", [Var "x"; Var "y"])],
-      Hom (Var "p", Var "x")
-    );
-    "snd", (
-      ["x", Obj; "y", Obj; "p", Cons ("prod", [Var "x"; Var "y"])],
-      Hom (Var "p", Var "y")
-    );
-    "pairing", (
-      ["x", Obj; "y", Obj; "z", Obj;
-       "f", Hom (Var "x", Var "y");
-       "g", Hom (Var "x", Var "z");
-       "p", Cons ("prod", [Var "y"; Var "z"])],
-      Hom (Var "x", Var "p")
-    );
-    "pairing-beta-l", (
-      ["x", Obj; "y", Obj; "z", Obj;
-       "f", Hom (Var "x", Var "y");
-       "g", Hom (Var "x", Var "z");
-       "p", Cons ("prod", [Var "y"; Var "z"])],
-      Eq (
-        Comp (
-          Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]),
-          Cons ("fst", [Var "y"; Var "z"; Var "p"])
-        ),
-        Var "f"
-      )
-    );
-    "pairing-beta-r", (
-      ["x", Obj; "y", Obj; "z", Obj;
-       "f", Hom (Var "x", Var "y");
-       "g", Hom (Var "x", Var "z");
-       "p", Cons ("prod", [Var "y"; Var "z"])],
-      Eq (
-        Comp (
-          Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]),
-          Cons ("snd", [Var "y"; Var "z"; Var "p"])
-        ),
-        Var "g"
-      )
-    );
-    "pairing-eta", (
-      ["x", Obj; "y", Obj; "z", Obj;
-       "f", Hom (Var "x", Var "y");
-       "g", Hom (Var "x", Var "z");
-       "p", Cons ("prod", [Var "y"; Var "z"]);
-       "h", Hom (Var "x", Var "p")
-      ],
-      Eq (Var "h", Cons ("pairing", [Var "x"; Var "y"; Var "z"; Var "f"; Var "g"; Var "p"]))
-    )
-  ]
-
-let term_constructors = ref term_constructors
-*)
 
 let type_constructors = ref []
 let term_constructors = ref []
@@ -220,3 +186,4 @@ module Decl = struct
       List.fold_left check env d
   end
 end
+*)
