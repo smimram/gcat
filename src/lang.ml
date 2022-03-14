@@ -93,7 +93,8 @@ type context = (string * t) list
 
 (** Evaluate a term to a value. *)
 let rec eval (env : environment) (t : Term.t) : t =
-  (* Printf.printf "eval: %s [%s]\n%!" (Term.to_string t) (env |> List.map fst |> String.concat ","); *)
+  (* Printf.printf "eval: %s\n%!" (Term.to_string t); *)
+  (* Printf.printf "      [%s]\n%!" (env |> List.map fst |> String.concat ","); *)
   match t.term with
   | Var x ->
     (
@@ -143,6 +144,11 @@ let rec eval (env : environment) (t : Term.t) : t =
   | Type -> Type
   | Hole -> Hole
 
+let fresh =
+  let n = ref (-1) in
+  fun () ->
+    incr n; "_x" ^ string_of_int !n
+
 let rec quote (t : t) : Term.t =
   let mk = Term.make dummy_pos in
   match t with
@@ -153,15 +159,19 @@ let rec quote (t : t) : Term.t =
   | Obj -> mk Obj
   | Hom (t, u) -> mk (Hom (quote t, quote u))
   | Eq (t, u) -> mk (Eq (quote t, quote u))
-  | App _ -> failwith "TODO"
-  | Abs _ -> failwith "TODO"
-  | Pi _ -> failwith "TODO"
-  | Sigma _ -> failwith "TODO"
-  | Record _ -> failwith "TODO"
-  | Field _ -> failwith "TODO"
+  | App _ -> failwith "TODO: app"
+  | Abs _ -> failwith "TODO: abs"
+  | Pi (x, a, env, t) ->
+    let x' = fresh () in
+    mk (Pi (x', quote a, quote (eval ((x, Var x')::env) t)))
+  | Sigma (x, a, env, f) ->
+    let x' = fresh () in
+    let f = List.map (fun (l, a) -> l, quote (eval ((x, Var x')::env) a)) f in
+    mk (Sigma (x', quote a, f))
+  | Record _ -> failwith "TODO: record"
+  | Field _ -> failwith "TODO: field"
   | Type -> mk Type
   | Hole -> mk Hole
-
 
 let to_string t = Term.to_string (quote t)
 
@@ -169,17 +179,13 @@ let to_string t = Term.to_string (quote t)
 let conv (t:t) (u:t) =
   t = u
 
-let fresh =
-  let n = ref (-1) in
-  fun () ->
-    incr n; "_x" ^ string_of_int !n
-
 exception Typing of pos * string
 
 let typing pos fmt = Printf.kprintf (fun s -> raise (Typing (pos, s))) fmt
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
-  (* Printf.printf "check: %s : ?\n%!" (Term.to_string t); *)
+  Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a);
+  (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
   match t.term, a with
   | Abs (x, a, t), Pi (x', a', env', b) ->
     let a = eval env a in
@@ -188,7 +194,9 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     check ((x, Var x)::env) ((x, a)::tenv) t b
   | Record (t, uu), Sigma (x, a, env', bb) ->
     check env tenv t a;
-    let env = (x,Var x)::env in (* TODO: quote t instead... *)
+    let t = eval env t in
+    let env = (x, t)::env in
+    let env' = (x, t)::env' in
     let tenv = (x,a)::tenv in
     let _ =
       List.fold_left2

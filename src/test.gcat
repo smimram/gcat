@@ -1,6 +1,6 @@
-point = {x : * | i : * -> *}
+point = {x : * | i : x -> x}
 
-pt (x : *) = { x, i = id(x) }
+pt (x : *) : point = { x, i = id(x) }
 
 -- terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
 
