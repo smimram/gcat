@@ -1,12 +1,14 @@
-type pos = Lexing.position * Lexing.position
+module Pos = struct
+  type t = Lexing.position * Lexing.position
 
-let dummy_pos : pos = Lexing.dummy_pos, Lexing.dummy_pos
+  let dummy : t = Lexing.dummy_pos, Lexing.dummy_pos
+end
 
 (** Terms. *)
 module Term = struct
   type t =
     {
-      pos : pos;
+      pos : Pos.t;
       term : term
     }
 
@@ -150,7 +152,7 @@ let fresh =
     incr n; "_x" ^ string_of_int !n
 
 let rec quote (t : t) : Term.t =
-  let mk = Term.make dummy_pos in
+  let mk = Term.make Pos.dummy in
   match t with
   | Var x -> mk (Var x)
   | Id t -> mk (Id (quote t))
@@ -159,16 +161,18 @@ let rec quote (t : t) : Term.t =
   | Obj -> mk Obj
   | Hom (t, u) -> mk (Hom (quote t, quote u))
   | Eq (t, u) -> mk (Eq (quote t, quote u))
-  | App _ -> failwith "TODO: app"
+  | App (t, uu) -> List.fold_left (fun t u -> mk (App (t, quote u))) (quote t) uu
   | Abs _ -> failwith "TODO: abs"
   | Pi (x, a, env, t) ->
     let x' = fresh () in
     mk (Pi (x', quote a, quote (eval ((x, Var x')::env) t)))
   | Sigma (x, a, env, f) ->
     let x' = fresh () in
-    let f = List.map (fun (l, a) -> l, quote (eval ((x, Var x')::env) a)) f in
+    let env = (x, Var x')::env in
+    let _, f = List.fold_left_map (fun env (l, a) -> (l, Var l)::env, (l, quote (eval env a))) env f in
     mk (Sigma (x', quote a, f))
   | Record _ -> failwith "TODO: record"
+  | Field (t, None) -> mk (Field (quote t, None))
   | Field _ -> failwith "TODO: field"
   | Type -> mk Type
   | Hole -> mk Hole
@@ -179,7 +183,7 @@ let to_string t = Term.to_string (quote t)
 let conv (t:t) (u:t) =
   t = u
 
-exception Typing of pos * string
+exception Typing of Pos.t * string
 
 let typing pos fmt = Printf.kprintf (fun s -> raise (Typing (pos, s))) fmt
 
@@ -232,11 +236,23 @@ and infer env tenv t : t =
   | Field (t, l) ->
     (
       match infer env tenv t with
-      | Sigma (_, a, _, _) ->
+      | Sigma (x, a, env, f) ->
         (
           match l with
           | None -> a
-          | Some _ -> failwith "TODO: field"
+          | Some l ->
+            let env = (x, Var x)::env in
+            let tenv = (x, a)::tenv in
+            let rec aux (env,tenv) = function
+              | (l', b)::_ when l' = l -> eval env b
+              | (l, b)::f ->
+                let b = eval env b in
+                let env = (l, Var l)::env in
+                let tenv = (l,b)::tenv in
+                aux (env,tenv) f
+              | [] -> assert false
+            in
+            aux (env,tenv) f
         )
       | _ -> assert false
     )
@@ -289,6 +305,7 @@ module Decl = struct
 
   let check d =
     let check env tenv ((x, a, t) : t) =
+      Printf.printf "def: %s\n%!" x;
       check env tenv a Type;
       let a = eval env a in
       check env tenv t a;

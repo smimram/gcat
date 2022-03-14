@@ -1,5 +1,5 @@
 let () =
-  Printexc.record_backtrace true;
+  (* Printexc.record_backtrace true; *)
   let fname = Sys.argv.(1) in
   let ic = open_in fname in
   let lexbuf = Lexing.from_channel ic in

@@ -1,9 +1,9 @@
-point = {x : * | i : x -> x}
+-- point = {x : * | i : x -> x}
 
-pt (x : *) : point = { x, i = id(x) }
+-- pt (x : *) : point = { x, i = id(x) }
 
--- terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
+terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
 
--- iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
+iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
 
--- terminal-unique (t : terminal) (u : terminal) : iso(!t,!u) = { arr, g = arr, sect = ?, retr = ? }
+terminal-unique (t : terminal) (u : terminal) : iso(!t,!u) = { u.arr(!t), g = t.arr(!u), sect = ?, retr = ? }

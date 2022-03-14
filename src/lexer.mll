@@ -17,6 +17,7 @@ rule token = parse
   | "|" { PIPE }
   | "," { COMMA }
   | "!" { BANG }
+  | "." { DOT }
   | "?" { HOLE }
   | "=>" { IMP }
   | "=" { EQ }
