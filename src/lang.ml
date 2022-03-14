@@ -16,7 +16,8 @@ module Term = struct
     | Obj (** An object. *)
     | Hom of t * t (** A morphism. *)
     | Eq of t * t (** An equality between parallel morphisms. *)
-    | Fun of string * t * t
+    | App of t * t
+    | Abs of string * t * t
     | Pi of string * t * t (** A pi type. *)
     | Sigma of string * t * (string * t) list (** A sigma type. *)
     | Record of t * (string * t) list
@@ -34,18 +35,35 @@ module Term = struct
   let fct pos args t =
     let rec aux = function
       | [] -> t
-      | (x,a)::l -> make pos (Fun (x, a, aux l))
+      | (x,a)::l -> make pos (Abs (x, a, aux l))
     in
     aux args
+
+  let rec to_string t =
+    match t.term with
+    | Var x -> x
+    | Id t -> Printf.sprintf "id(%s)" (to_string t)
+    | Comp (t, u) -> Printf.sprintf "%s;%s" (to_string t) (to_string u)
+    | Obj -> "*"
+    | Hom (t, u) -> Printf.sprintf "%s -> %s" (to_string t) (to_string u)
+    | Eq (t, u) -> Printf.sprintf "%s == %s" (to_string t) (to_string u)
+    | App (t, u) -> Printf.sprintf "%s(%s)" (to_string t) (to_string u)
+    | Abs (x, a, t) -> Printf.sprintf "fun (%s : %s) -> %s" x (to_string a) (to_string t)
+    | Pi (x, a, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
+    | Sigma (x, a, l) -> Printf.sprintf "{ %s : %s | %s }" x (to_string a) (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
+    | Record (t, l) -> Printf.sprintf "{%s, %s}" (to_string t) (List.map (fun (l,t) -> l ^ " = " ^ to_string t) l |> String.concat ", ")
+    | Type -> "Type"
 end
 
 type t =
+  | Var of string
   | Id of t
   | Comp of t list
   | Obj
   | Hom of t * t
   | Eq of t * t
-  | Fun of string * environment * Term.t
+  | App of t * t list
+  | Abs of string * environment * Term.t
   | Pi of string * t * environment * Term.t
   | Sigma of string * t * (string * t) list
   | Record of t * (string * t) list
@@ -59,8 +77,14 @@ type context = (string * t) list
 
 (** Evaluate a term to a value. *)
 let rec eval (env : environment) (t : Term.t) : t =
+  (* Printf.printf "eval: %s [%s]\n%!" (Term.to_string t) (env |> List.map fst |> String.concat ","); *)
   match t.term with
-  | Var x -> List.assoc x env
+  | Var x ->
+    (
+      match List.assoc_opt x env with
+      | Some v -> v
+      | None -> failwith ("Variable not found during evaluation: " ^ x)
+    )
   | Id t -> Id (eval env t)
   | Comp (t, u) ->
     (
@@ -75,156 +99,91 @@ let rec eval (env : environment) (t : Term.t) : t =
   | Obj -> Obj
   | Hom (t, u) -> Hom (eval env t, eval env u)
   | Eq (t, u) -> Eq (eval env t, eval env u)
-  | Fun (x, _, t) -> Fun (x, env, t)
+  | App (t, u) ->
+    let t = eval env t in
+    let u = eval env u in
+    (
+      match t with
+      | Abs (x, env, t) -> eval ((x,u)::env) t
+      | App (t, tt) -> App (t, u::tt)
+      | _ -> App (t, [u])
+    )
+  | Abs (x, _, t) -> Abs (x, env, t)
   | Pi (x, a, b) -> Pi (x, eval env a, env, b)
   | Sigma (x, a, l) -> Sigma (x, eval env a, List.map (fun (l, a) -> l, eval env a) l)
   | Record (t, l) -> Record (eval env t, List.map (fun (l, t) -> l, eval env t) l)
   | Type -> Type
 
-
 (** Convertibility of terms. *)
 let conv (t:t) (u:t) =
   t = u
 
+let fresh =
+  let n = ref (-1) in
+  fun () ->
+    incr n; "_x" ^ string_of_int !n
+
 exception Typing of pos * string
 
-let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) : Term.t =
+let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
+  (* Printf.printf "check: %s : ?\n%!" (Term.to_string t); *)
   match t.term, a with
-  (* | Fun (x, a, t)  *)
+  | Abs (x, a, t), Pi (x', a', env', b) ->
+    let a = eval env a in
+    assert (conv a a');
+    let b = eval ((x', Var x)::env') b in
+    check ((x, Var x)::env) ((x, a)::tenv) t b
   | _ ->
-    let t', a' = infer env tenv t in
-    if not (conv a a') then raise (Typing (t.pos, "..."));
-    t'
+    let a' = infer env tenv t in
+    if not (conv a a') then raise (Typing (t.pos, "..."))
 
-and infer env tenv t : Term.t * t =
+and infer env tenv t : t =
+  (* Printf.printf "infer: %s\n%!" (Term.to_string t); *)
+  (* Printf.printf "infer: %s [%s]\n%!" (Term.to_string t) (env |> List.map fst |> String.concat ","); *)
   match t.term with
-  | Type -> t, Type
-  | _ -> ignore env; ignore tenv; assert false
-
-(*
-(** A substitution. *)
-type subst = (string * t) list
-
-(** Apply a substitution. *)
-let rec subst (s : subst) = function
-  | Var x when List.mem_assoc x s -> List.assoc x s
-  | Var _ as t -> t
-  | Id t -> Id (subst s t)
-  | Comp (t, u) -> Comp (subst s t, subst s u)
-  | Cons (c, l) -> Cons (c, List.map (subst s) l)
-
-module Type = struct
-  (** A type. *)
-  type t =
-    | Obj (** An object. *)
-    | Hom of term * term (** A morphism. *)
-    | Eq of term * term (** An equality between parallel morphisms. *)
-    | Cons of string * term list (** A constructor. *)
-
-  let string_of_term = to_string
-
-  let to_string = function
-    | Obj -> "*"
-    | Hom (a, b) -> Printf.sprintf "%s -> %s" (string_of_term a) (string_of_term b)
-    | Eq (a, b) -> Printf.sprintf "%s == %s" (string_of_term a) (string_of_term b)
-    | Cons (c, _) -> Printf.sprintf "%s(...)" c
-
-  let subst (s : subst) = function
-    | Obj -> Obj
-    | Hom (t, u) -> Hom (subst s t, subst s u)
-    | Eq (t, u) -> Eq (subst s t, subst s u)
-    | Cons (c, l) -> Cons (c, List.map (subst s) l)
-end
-
-let type_constructors = ref []
-let term_constructors = ref []
-
-(** Raise on typing error. *)
-exception Typing of string
-
-(** The subtyping relation. *)
-let rec ( <: ) (a : Type.t) (b : Type.t) =
-  (* TODO: recursively use convertibility on terms *)
-  match a, b with
-  | a, b when a = b -> ()
-  | Cons (c, l), b ->
-    (
-      let p, a = List.assoc c !type_constructors in
-      let s = List.map2 (fun t (x, _) -> x, t) l p in
-      let a = Type.subst s a in
-      a <: b
-    )
-  | _ -> raise (Typing "")
-
-(** Ensure that we have a type. *)
-let rec check_type env (a : Type.t) =
-  match a with
-  | Obj -> ()
-  | Hom (t, u) ->
-    infer env t <: Obj;
-    infer env u <: Obj
-  | Eq (f, g) ->
-    (
-      match infer env f, infer env g with
-      | Hom (a, b), Hom (a', b') when conv a a' && conv b b' -> ()
-      | a, b ->
-        raise (Typing (Printf.sprintf "equality between elements of types %s and %s%!" (Type.to_string a) (Type.to_string b)));
-    )
-  | Cons (c, l) ->
-    let a = match List.assoc_opt c !type_constructors with Some a -> a | None -> raise (Typing "") in
-    List.iter2 (fun t (_,a) -> check env t a) l (fst a)
-
-(** Check that a term has a given type. *)
-and check env t a =
-  infer env t <: a
-
-(** Infer the type of a term. *)
-and infer env (t : t) : Type.t =
-  match t with
   | Var x ->
     (
-      match List.assoc_opt x env with
+      match List.assoc_opt x tenv with
       | Some a -> a
-      | None -> raise (Typing (Printf.sprintf "Variable not found: %s." x))
+      | None -> raise (Typing (t.pos, "Variable not found: " ^ x))
     )
-  | Id t ->
-    infer env t <: Obj;
-    Hom (t, t)
-  | Comp (t, u) ->
+  | Sigma (x, a, f) ->
+    check env tenv a Type;
+    let a = eval env a in
+    let env = (x, Var x)::env in
+    let tenv = (x, a)::tenv in
+    let _ = List.fold_left (fun (env,tenv) (x, a) -> check env tenv a Type; ((x,Var x)::env, (x,eval env a)::tenv)) (env,tenv) f in
+    Type
+  | App (t, u) ->
+    let a = infer env tenv u in
+    let u = eval env u in
     (
-      match infer env t, infer env u with
-      | Hom (a, b), Hom (b', c) when conv b b' -> Hom (a, c)
-      | _ -> raise (Typing "")
+      match infer env tenv t with
+      | Pi (x, a', env, b) ->
+        assert (conv a a');
+        eval ((x,u)::env) b
+      | _ -> assert false
     )
-  | Cons (c, l) ->
-    let e, a = match List.assoc_opt c !term_constructors with Some ea -> ea | None -> raise (Typing "") in
-    let _, s = List.fold_left2 (fun (env,s) t (x, a) -> infer env t <: a; (x,a)::env, (x,t)::s) (env, []) l e in
-    Type.subst s a
-
-(** Declarations. *)
-module Decl = struct
-  type t =
-    | Type of string * context * Type.t
-    | Term of string * context * Type.t
-
-  let check (env : context) : t -> context = function
-    | Type (c, l, a) ->
-      let env = List.fold_left (fun env (x, a) -> check_type env a; (x,a)::env) env l in
-      check_type env a;
-      type_constructors := (c,(l,a)) :: !type_constructors;
-      env
-    | Term (c, l, a) ->
-      let env = List.fold_left (fun env (x, a) -> check_type env a; (x,a)::env) env l in
-      check_type env a;
-      term_constructors := (c,(l,a)) :: !term_constructors;
-      (c,a)::env
-
-  module List = struct
-    let check env d =
-      List.fold_left check env d
-  end
-end
-*)
+  | Obj -> Type
+  | Hom (t, u) ->
+    check env tenv t Obj;
+    check env tenv u Obj;
+    Type
+  | Eq (t, u) ->
+    (
+      match infer env tenv t, infer env tenv u with
+      | Hom (t, u), Hom (t', u') ->
+        assert (conv t t');
+        assert (conv u u');
+        Type
+      | _ -> assert false
+    )
+  | Pi (x, a, b) ->
+    check env tenv a Type;
+    check ((x,Var x)::env) ((x,eval env a)::tenv) b Type;
+    Type
+  | Type -> Type
+  | _ -> assert false
 
 module Decl = struct
   (** A declaration: name, type, value. *)
@@ -232,9 +191,9 @@ module Decl = struct
 
   let check d =
     let check env tenv ((x, a, t) : t) =
-      let a = check env tenv a Type in
+      check env tenv a Type;
       let a = eval env a in
-      let t = check env tenv t a in
+      check env tenv t a;
       let t = eval env t in
       ((x,t)::env), ((x,a)::tenv)
     in

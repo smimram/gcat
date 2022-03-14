@@ -11,9 +11,10 @@ let decl pos name args a t : Lang.Decl.t =
 %token<string> IDENT
 %token EOF
 
-%nonassoc EQUALS
-%nonassoc TO
 %right IMP
+%nonassoc TO
+%nonassoc EQUALS
+%nonassoc LPAR
 
 %start main
 %type<Lang.Decl.t list> main
@@ -41,6 +42,7 @@ term:
    | args IMP term { pi $loc $1 $3 }
    | term TO term { make $loc (Hom ($1, $3)) }
    | term EQUALS term { make $loc (Eq ($1, $3)) }
+   | term LPAR term RPAR { make $loc (App ($1, $3)) }
    /*
    | IDENT LPAR terms RPAR { Cons ($1, $3) }
    | term SC term { Comp ($1, $3) }
