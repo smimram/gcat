@@ -45,11 +45,16 @@ term:
    | args IMP term { pi $loc $1 $3 }
    | term TO term { make $loc (Hom ($1, $3)) }
    | term EQUALS term { make $loc (Eq ($1, $3)) }
-   | term LPAR term RPAR { make $loc (App ($1, $3)) }
+   | term LPAR terms RPAR { app $loc $1 $3 }
    | ID LPAR term RPAR { make $loc (Id ($3)) }
    | term SC term { make $loc (Comp ($1, $3)) }
    | HOLE { make $loc Hole }
    | BANG term { make $loc (Field ($2, None)) }
+
+terms:
+   | { [] }
+   | term { [$1] }
+   | term COMMA terms { $1::$3 }
 
 sigma_fields:
   | IDENT COLON term COMMA sigma_fields { ($1,$3)::$5 }

@@ -27,6 +27,13 @@ module Term = struct
 
   let make pos term = { pos; term }
 
+  let app pos t l =
+    let rec aux t = function
+      | [] -> t
+      | u::l -> aux (make pos (App (t, u))) l
+    in
+    aux t l
+
   let pi pos args b =
     let rec aux = function
       | [] -> b
@@ -172,16 +179,17 @@ and infer env tenv t : t =
     let tenv = (x, a)::tenv in
     let _ = List.fold_left (fun (env,tenv) (x, a) -> check env tenv a Type; ((x,Var x)::env, (x,eval env a)::tenv)) (env,tenv) f in
     Type
-  (* | Field (t, l) -> *)
-    (* ( *)
-      (* match infer env tenv t with *)
-      (* | Sigma (x, a, f) -> *)
-        (* ( *)
-          (* match l with *)
-          (* |  *)
-        (* ) *)
-      (* | _ -> assert false *)
-    (* ) *)
+  | Field (t, l) ->
+    (
+      match infer env tenv t with
+      | Sigma (_, a, _) ->
+        (
+          match l with
+          | None -> a
+          | Some _ -> failwith "TODO: field"
+        )
+      | _ -> assert false
+    )
   | App (t, u) ->
     let a = infer env tenv u in
     let u = eval env u in
