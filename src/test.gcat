@@ -1,3 +1,5 @@
 terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
 
--- iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : (x : *) => g;f = id(x), retr : (x : *) = f;g = id(x)}
+iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
+
+terminal-unique : (t : terminal) (u : terminal) : t == u = ?

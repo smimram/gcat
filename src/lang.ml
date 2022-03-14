@@ -178,6 +178,18 @@ and infer env tenv t : t =
         Type
       | _ -> assert false
     )
+  | Id t ->
+    check env tenv t Obj;
+    let t = eval env t in
+    Hom (t, t)
+  | Comp (t, u) ->
+    (
+      match infer env tenv t, infer env tenv u with
+      | Hom (x, y), Hom (y', z) ->
+        assert (conv y y');
+        Hom (x, z)
+      | _ -> assert false
+    )
   | Pi (x, a, b) ->
     check env tenv a Type;
     check ((x,Var x)::env) ((x,eval env a)::tenv) b Type;

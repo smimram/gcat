@@ -6,7 +6,7 @@ let decl pos name args a t : Lang.Decl.t =
 %}
 
 %token LPAR RPAR LACC RACC
-%token OBJ TO EQUALS SC
+%token OBJ TO EQUALS ID SC
 %token EQ COLON COMMA PIPE IMP
 %token<string> IDENT
 %token EOF
@@ -14,6 +14,7 @@ let decl pos name args a t : Lang.Decl.t =
 %right IMP
 %nonassoc TO
 %nonassoc EQUALS
+%right SC
 %nonassoc LPAR
 
 %start main
@@ -43,11 +44,8 @@ term:
    | term TO term { make $loc (Hom ($1, $3)) }
    | term EQUALS term { make $loc (Eq ($1, $3)) }
    | term LPAR term RPAR { make $loc (App ($1, $3)) }
-   /*
-   | IDENT LPAR terms RPAR { Cons ($1, $3) }
-   | term SC term { Comp ($1, $3) }
-   | IDENT LPAR terms RPAR { Cons ($1, $3) }
-       */
+   | ID LPAR term RPAR { make $loc (Id ($3)) }
+   | term SC term { make $loc (Comp ($1, $3)) }
 
 sigma_fields:
   | IDENT COLON term COMMA sigma_fields { ($1,$3)::$5 }

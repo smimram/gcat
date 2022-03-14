@@ -23,6 +23,7 @@ rule token = parse
   | "→" { utf8 lexbuf; TO }
   | "->" { TO }
   | ":" { COLON }
+  | "id" { ID }
   | ";" { SC }
   | (['A'-'Z''a'-'z''-']+ as s) { IDENT s }
   | "--"[^'\n']* { token lexbuf }
