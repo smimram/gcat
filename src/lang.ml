@@ -1,5 +1,7 @@
 type pos = Lexing.position * Lexing.position
 
+let dummy_pos : pos = Lexing.dummy_pos, Lexing.dummy_pos
+
 (** Terms. *)
 module Term = struct
   type t =
@@ -141,6 +143,28 @@ let rec eval (env : environment) (t : Term.t) : t =
   | Type -> Type
   | Hole -> Hole
 
+let rec quote (t : t) : Term.t =
+  let mk = Term.make dummy_pos in
+  match t with
+  | Var x -> mk (Var x)
+  | Id t -> mk (Id (quote t))
+  | Comp (t::l) -> List.fold_left (fun t u -> mk (Term.Comp (t, quote u))) (quote t) l
+  | Comp [] -> assert false
+  | Obj -> mk Obj
+  | Hom (t, u) -> mk (Hom (quote t, quote u))
+  | Eq (t, u) -> mk (Eq (quote t, quote u))
+  | App _ -> failwith "TODO"
+  | Abs _ -> failwith "TODO"
+  | Pi _ -> failwith "TODO"
+  | Sigma _ -> failwith "TODO"
+  | Record _ -> failwith "TODO"
+  | Field _ -> failwith "TODO"
+  | Type -> mk Type
+  | Hole -> mk Hole
+
+
+let to_string t = Term.to_string (quote t)
+
 (** Convertibility of terms. *)
 let conv (t:t) (u:t) =
   t = u
@@ -151,6 +175,8 @@ let fresh =
     incr n; "_x" ^ string_of_int !n
 
 exception Typing of pos * string
+
+let typing pos fmt = Printf.kprintf (fun s -> raise (Typing (pos, s))) fmt
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
   (* Printf.printf "check: %s : ?\n%!" (Term.to_string t); *)
@@ -176,7 +202,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     ()
   | _ ->
     let a' = infer env tenv t in
-    if not (conv a a') then raise (Typing (t.pos, "..."))
+    if not (conv a a') then typing t.pos "Got %s but %s expected." (to_string a') (to_string a)
 
 and infer env tenv t : t =
   Printf.printf "infer: %s\n%!" (Term.to_string t);

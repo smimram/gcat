@@ -1,5 +1,9 @@
-terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
+point = {x : * | i : * -> *}
 
-iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
+pt (x : *) = { x, i = id(x) }
 
-terminal-unique (t : terminal) (u : terminal) : iso(!t,!u) = { arr, g = arr, sect = ?, retr = ? }
+-- terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
+
+-- iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
+
+-- terminal-unique (t : terminal) (u : terminal) : iso(!t,!u) = { arr, g = arr, sect = ?, retr = ? }
