@@ -77,7 +77,8 @@ type t =
   | App of t * t list
   | Abs of string * environment * Term.t
   | Pi of string * t * environment * Term.t
-  | Sigma of string * t * (string * t) list
+  | Sigma of string * t * environment * (string * Term.t) list
+  | Field of t * string option
   | Record of t * (string * t) list
   | Type
   | Hole
@@ -123,7 +124,8 @@ let rec eval (env : environment) (t : Term.t) : t =
     )
   | Abs (x, _, t) -> Abs (x, env, t)
   | Pi (x, a, b) -> Pi (x, eval env a, env, b)
-  | Sigma (x, a, l) -> Sigma (x, eval env a, List.map (fun (l, a) -> l, eval env a) l)
+  | Sigma (x, a, f) ->
+    Sigma (x, eval env a, env, f)
   | Record (t, l) -> Record (eval env t, List.map (fun (l, t) -> l, eval env t) l)
   | Field (t, l) ->
     (
@@ -134,7 +136,7 @@ let rec eval (env : environment) (t : Term.t) : t =
           | None -> v
           | Some l -> List.assoc l f
         )
-      | _ -> failwith "TODO"
+      | t -> Field (t, l)
     )
   | Type -> Type
   | Hole -> Hole
@@ -158,6 +160,20 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     assert (conv a a');
     let b = eval ((x', Var x)::env') b in
     check ((x, Var x)::env) ((x, a)::tenv) t b
+  | Record (t, uu), Sigma (x, a, env', bb) ->
+    check env tenv t a;
+    let env = (x,Var x)::env in (* TODO: quote t instead... *)
+    let tenv = (x,a)::tenv in
+    let _ =
+      List.fold_left2
+        (fun (env,env',tenv) (l,u) (l',a) ->
+           assert (l = l');
+           let a = eval env' a in
+           check env tenv u a;
+           (l, eval env u)::env, (l, eval env u)::env', (l, a)::tenv
+        ) (env,env',tenv) uu bb
+    in
+    ()
   | _ ->
     let a' = infer env tenv t in
     if not (conv a a') then raise (Typing (t.pos, "..."))
@@ -182,7 +198,7 @@ and infer env tenv t : t =
   | Field (t, l) ->
     (
       match infer env tenv t with
-      | Sigma (_, a, _) ->
+      | Sigma (_, a, _, _) ->
         (
           match l with
           | None -> a
