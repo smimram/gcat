@@ -16,6 +16,8 @@ rule token = parse
   | "}" { RACC }
   | "|" { PIPE }
   | "," { COMMA }
+  | "!" { BANG }
+  | "?" { HOLE }
   | "=>" { IMP }
   | "=" { EQ }
   | "==" { EQUALS }

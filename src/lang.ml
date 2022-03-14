@@ -21,7 +21,9 @@ module Term = struct
     | Pi of string * t * t (** A pi type. *)
     | Sigma of string * t * (string * t) list (** A sigma type. *)
     | Record of t * (string * t) list
+    | Field of t * string option
     | Type
+    | Hole
 
   let make pos term = { pos; term }
 
@@ -52,7 +54,10 @@ module Term = struct
     | Pi (x, a, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
     | Sigma (x, a, l) -> Printf.sprintf "{ %s : %s | %s }" x (to_string a) (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
     | Record (t, l) -> Printf.sprintf "{%s, %s}" (to_string t) (List.map (fun (l,t) -> l ^ " = " ^ to_string t) l |> String.concat ", ")
+    | Field (t, None) -> Printf.sprintf "!%s" (to_string t)
+    | Field (t, Some l) -> Printf.sprintf "%s.%s" (to_string t) l
     | Type -> "Type"
+    | Hole -> "?"
 end
 
 type t =
@@ -68,6 +73,7 @@ type t =
   | Sigma of string * t * (string * t) list
   | Record of t * (string * t) list
   | Type
+  | Hole
 
 (** An environment. *)
 and environment = (string * t) list
@@ -112,7 +118,19 @@ let rec eval (env : environment) (t : Term.t) : t =
   | Pi (x, a, b) -> Pi (x, eval env a, env, b)
   | Sigma (x, a, l) -> Sigma (x, eval env a, List.map (fun (l, a) -> l, eval env a) l)
   | Record (t, l) -> Record (eval env t, List.map (fun (l, t) -> l, eval env t) l)
+  | Field (t, l) ->
+    (
+      match eval env t with
+      | Record (v, f) ->
+        (
+          match l with
+          | None -> v
+          | Some l -> List.assoc l f
+        )
+      | _ -> failwith "TODO"
+    )
   | Type -> Type
+  | Hole -> Hole
 
 (** Convertibility of terms. *)
 let conv (t:t) (u:t) =
@@ -138,7 +156,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     if not (conv a a') then raise (Typing (t.pos, "..."))
 
 and infer env tenv t : t =
-  (* Printf.printf "infer: %s\n%!" (Term.to_string t); *)
+  Printf.printf "infer: %s\n%!" (Term.to_string t);
   (* Printf.printf "infer: %s [%s]\n%!" (Term.to_string t) (env |> List.map fst |> String.concat ","); *)
   match t.term with
   | Var x ->
@@ -154,6 +172,16 @@ and infer env tenv t : t =
     let tenv = (x, a)::tenv in
     let _ = List.fold_left (fun (env,tenv) (x, a) -> check env tenv a Type; ((x,Var x)::env, (x,eval env a)::tenv)) (env,tenv) f in
     Type
+  (* | Field (t, l) -> *)
+    (* ( *)
+      (* match infer env tenv t with *)
+      (* | Sigma (x, a, f) -> *)
+        (* ( *)
+          (* match l with *)
+          (* |  *)
+        (* ) *)
+      (* | _ -> assert false *)
+    (* ) *)
   | App (t, u) ->
     let a = infer env tenv u in
     let u = eval env u in
