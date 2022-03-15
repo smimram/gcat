@@ -21,7 +21,6 @@ module Term = struct
     | Var of string
     | Id of t
     | Comp of t * t
-    (* | Cons of string * t list (\** A constructor. *\) *)
     | Obj (** An object. *)
     | Hom of t * t (** A morphism. *)
     | Eq of t * t (** An equality between parallel morphisms. *)
