@@ -28,7 +28,7 @@ rule token = parse
   | ":" { COLON }
   | "id" { ID }
   | ";" { SC }
-  | (['A'-'Z''a'-'z''-']+ as s) { IDENT s }
+  | (['A'-'Z''a'-'z''-''\'']+ as s) { IDENT s }
   | "--"[^'\n']* { token lexbuf }
   | space+ { token lexbuf }
   | "\n" { new_line lexbuf; token lexbuf }

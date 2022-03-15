@@ -11,11 +11,11 @@ terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) (g : x -
 iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
 
 terminal-iso (t : terminal) (u : terminal) : iso(t,u) =
-{ u.arr(t),
-  g = t.arr(u),
-  sect = u.eta(u, t.arr(u) ; u.arr(t), id(u)),
-  retr = t.eta(t, u.arr(t) ; t.arr(u), id(t))
-}
+  { u.arr(t),
+    g = t.arr(u),
+    sect = u.eta(u, t.arr(u) ; u.arr(t), id(u)),
+    retr = t.eta(t, u.arr(t) ; t.arr(u), id(t))
+  }
 
 prod (x : *) (y : *) =
   { p : * |
@@ -32,4 +32,12 @@ prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
     g = p.cons(q, q.snd, q.fst),
     sect = ?,
     retr = ?
+  }
+
+pullback (x : *) (y : *) (z : *) (f : x -> z) (g : y -> z) =
+  { p : * |
+    f' : p -> x,
+    g' : p -> y,
+    eq : f' ; f == g' ; g,
+    cons : (z : *) (f'' : z -> x) (g'' : z -> y) (e : f'' ; f == g'' ; g) => z -> p
   }
