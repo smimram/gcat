@@ -63,7 +63,7 @@ module Term = struct
     match t.term with
     | Var x -> x
     | Id t -> Printf.sprintf "id(%s)" (to_string t)
-    | Comp (t, u) -> Printf.sprintf "%s;%s" (to_string t) (to_string u)
+    | Comp (t, u) -> Printf.sprintf "%s ; %s" (to_string t) (to_string u)
     | Obj -> "*"
     | Hom (t, u) -> Printf.sprintf "%s -> %s" (to_string t) (to_string u)
     | Eq (t, u) -> Printf.sprintf "%s == %s" (to_string t) (to_string u)
@@ -76,7 +76,7 @@ module Term = struct
         in
         aux [] t
       in
-      Printf.sprintf "%s(%s)" (to_string t) (List.map to_string u |> String.concat ",")
+      Printf.sprintf "%s(%s)" (to_string t) (List.map to_string u |> String.concat ", ")
     | Abs (x, a, t) -> Printf.sprintf "fun (%s : %s) -> %s" x (to_string a) (to_string t)
     | Pi (x, a, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
     | Sigma (x, a, l) -> Printf.sprintf "{ %s : %s | %s }" x (to_string a) (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
@@ -177,7 +177,7 @@ let rec quote (t : t) : Term.t =
   | Obj -> mk Obj
   | Hom (t, u) -> mk (Hom (quote t, quote u))
   | Eq (t, u) -> mk (Eq (quote t, quote u))
-  | App (t, uu) -> List.fold_left (fun t u -> mk (App (t, quote u))) (quote t) uu
+  | App (t, uu) -> List.fold_right (fun u t -> mk (App (t, quote u))) uu (quote t)
   | Abs _ -> failwith "TODO: abs"
   | Pi (x, a, env, t) ->
     let x' = fresh () in

@@ -30,8 +30,8 @@ prod (x : *) (y : *) =
   }
 
 prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
-{ q.cons(p, p.snd, p.fst),
-  g = p.cons(q, q.snd, q.fst),
-  sect = ?,
-  retr = ?
-}
+  { q.cons(p, p.snd, p.fst),
+    g = p.cons(q, q.snd, q.fst),
+    sect = ?,
+    retr = ?
+  }
