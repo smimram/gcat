@@ -315,6 +315,10 @@ and infer env tenv t : t =
   | Type -> Type
   | _ -> assert false
 
+let has_type env tenv t a =
+  try ignore (check env tenv t a); true
+  with Typing _ -> false
+
 module Decl = struct
   (** A declaration: name, type, value. *)
   type t = string * Term.t * Term.t

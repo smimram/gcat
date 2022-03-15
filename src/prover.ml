@@ -1,6 +1,8 @@
 let interactive = ref false
 let fname = ref ""
 
+open Lang
+
 let () =
   Printexc.record_backtrace true;
   Arg.parse
@@ -38,15 +40,16 @@ let () =
           failwith err
       in
       close_in ic;
-      try Lang.Decl.check decls
-      with Lang.Typing (pos, e) ->
+      try Decl.check decls
+      with Typing (pos, e) ->
         let bt = Printexc.get_raw_backtrace () in
-        Printf.printf "\nTyping error at %s:\n%s\n\n%s\n%!" (Lang.Pos.to_string pos) e (Printexc.raw_backtrace_to_string bt);
+        Printf.printf "\nTyping error at %s:\n%s\n\n%s\n%!" (Pos.to_string pos) e (Printexc.raw_backtrace_to_string bt);
         exit 1
   in
   let env = ref env in
   let tenv = ref tenv in
   let state = ref [] in
+  let term t = Term.make Pos.dummy t in
   while !interactive do
     try
       Printf.printf "# %!";
@@ -59,15 +62,26 @@ let () =
         match cmd with
         | "assume" ->
           let x, a = Lexing.from_string args |> Parser.typed_variable Lexer.token in
-          Lang.check !env !tenv a Lang.Type;
+          check !env !tenv a Type;
+          let av = eval !env a in
           env := (x, Var x) :: !env;
-          tenv := (x, Lang.eval !env a) :: !tenv;
-          state := !state @ [Lang.Var x, a]
-        (* | "match" -> *)
-          (* let x = args in *)
-        | cmd -> Printf.printf "Unknown command: %s\n%!" cmd
+          tenv := (x, eval !env a) :: !tenv;
+          state := !state @ [term (Var x), (a, av)]
+        | "match" ->
+          let f = args in
+          let f = term (Var f) in
+          let rec search (f : Term.t) : Term.t list =
+            match infer !env !tenv f with
+            | Pi (_, a, _, _) ->
+              let ff = List.filter_map (fun (t, (_, a')) -> if conv a' a then Some (term (App (f, t))) else None) !state in
+              List.map search ff |> List.flatten
+            | _ -> [f]
+          in
+          let ff = search f in
+          List.iter (fun t -> Printf.printf "- %s\n%!" (Term.to_string t)) ff
+        | cmd -> failwith ("Unknown command: " ^ cmd)
       );
-      Printf.printf "OK: %s\n%!" (List.map (fun (t, a) -> Lang.to_string t ^ " : " ^ Lang.Term.to_string a) !state |> String.concat ", ")
+      Printf.printf "OK: %s\n%!" (List.map (fun (t, (a, _)) -> Term.to_string t ^ " : " ^ Term.to_string a) !state |> String.concat ", ")
     with
     | End_of_file -> print_newline (); exit 0
     | e -> Printf.printf "Error: %s\n%!" (Printexc.to_string e)

@@ -1,3 +1,4 @@
 assume x : *
 assume y : *
 assume p : prod(x,y)
+match prod
