@@ -25,3 +25,7 @@ is a good idea but I don't think so in the end:
   then we can construct an arrow `π₁ : x×y → x`, which means that π₁ depends on
   the fact that we have an object of the form x×y, and therefore does not take a
   context as argument (a context can only bind variables not patterns)
+- we can implicitly cast a record into its main value
+
+For the terminal object, uniqueness is better phrased as f = g rather than f =
+arr (the second requires us using transitivity of equality...).
