@@ -328,5 +328,5 @@ module Decl = struct
       let t = eval env t in
       ((x,t)::env), ((x,a)::tenv)
     in
-    ignore (List.fold_left (fun (env,tenv) -> check env tenv) ([],[]) d)
+    List.fold_left (fun (env,tenv) -> check env tenv) ([],[]) d
 end

@@ -1,6 +1,9 @@
 all:
 	@dune exec ./prover.exe test.gcat
 
+interactive:
+	@dune exec -- ./prover.exe -i test.gcat < interactive.gcat
+
 clean:
 	@dune clean
 

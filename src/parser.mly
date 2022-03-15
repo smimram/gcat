@@ -21,6 +21,8 @@ let decl pos name args a t : Lang.Decl.t =
 
 %start main
 %type<Lang.Decl.t list> main
+%start typed_variable
+%type<string * t> typed_variable
 %%
 
 main:
@@ -65,3 +67,6 @@ sigma_fields:
 record_fields:
   | IDENT EQ term COMMA record_fields { ($1,$3)::$5 }
   | IDENT EQ term { [$1,$3] }
+
+typed_variable:
+  | IDENT COLON term EOF { $1, $3 }
