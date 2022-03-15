@@ -2,21 +2,19 @@
 
 -- pt (x : *) : point = { x, i = id(x) }
 
-trans (x : *) (y : *) (f : x -> y) (g : x -> y) (h : x -> y) (p : f == g) (q : g == h) : f == h = ?
+-- trans (x : *) (y : *) (f : x -> y) (g : x -> y) (h : x -> y) (p : f == g) (q : g == h) : f == h = ?
 
-sym (x : *) (y : *) (f : x -> y) (g : x -> y) (p : g == f) : f == g = ?
+-- sym (x : *) (y : *) (f : x -> y) (g : x -> y) (p : g == f) : f == g = ?
 
-terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
-
--- terminal-id (x : terminal) : x.arr(x) == id(x) = eq-trans(x,x,?,?,?,?,?)
+terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) (g : x -> t) => f == g}
 
 iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
 
 terminal-iso (t : terminal) (u : terminal) : iso(t,u) =
 { u.arr(t),
   g = t.arr(u),
-  sect = trans(u, u, t.arr(!u);u.arr(!t), u.arr(u),id(u), u.eta(u,t.arr(!u);u.arr(!t)), sym(u, u, u.arr(!u), id(!u), u.eta(u, id(u)))),
-  retr = ?
+  sect = u.eta(u, t.arr(u) ; u.arr(t), id(u)),
+  retr = t.eta(t, u.arr(t) ; t.arr(u), id(t))
 }
 
 prod (x : *) (y : *) =
@@ -26,7 +24,7 @@ prod (x : *) (y : *) =
     cons : (z : *) (f : z -> x) (g : z -> y) => z -> p,
     beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(z,f,g);fst == f,
     beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(z,f,g);snd == g,
-    eta : (z : *) (h : z -> p) => cons(z,h;fst,h;snd) == h
+    eta : (z : *) (h : z -> p) => cons(z, h;fst, h;snd) == h
   }
 
 prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
