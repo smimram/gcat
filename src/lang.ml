@@ -293,13 +293,11 @@ and infer env tenv t : t =
     Type
   | Eq (t, u) ->
     (
-      match infer env tenv t, infer env tenv u with
-      | Hom (t, u), Hom (t', u') ->
-        assert (conv t t');
-        assert (conv u u');
-        Type
+      match infer env tenv t with
+      | Hom _ as a -> check env tenv u a
       | _ -> assert false
-    )
+    );
+    Type
   | Id t ->
     check env tenv t Obj;
     let t = eval env t in
