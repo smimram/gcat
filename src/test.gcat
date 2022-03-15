@@ -36,8 +36,11 @@ prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
 
 pullback (x : *) (y : *) (z : *) (f : x -> z) (g : y -> z) =
   { p : * |
-    f' : p -> x,
-    g' : p -> y,
-    eq : f' ; f == g' ; g,
-    cons : (z : *) (f'' : z -> x) (g'' : z -> y) (e : f'' ; f == g'' ; g) => z -> p
+    fst : p -> x,
+    snd : p -> y,
+    eq : fst ; f == snd ; g,
+    cons : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => z -> p,
+    beta-l : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => cons(z, f', g', e) ; fst == f',
+    beta-r : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => cons(z, f', g', e) ; snd == g',
+    eta : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) (h : z -> p) => cons(z, h ; fst, h ; snd, ?) == h
   }
