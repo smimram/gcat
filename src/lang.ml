@@ -67,7 +67,16 @@ module Term = struct
     | Obj -> "*"
     | Hom (t, u) -> Printf.sprintf "%s -> %s" (to_string t) (to_string u)
     | Eq (t, u) -> Printf.sprintf "%s == %s" (to_string t) (to_string u)
-    | App (t, u) -> Printf.sprintf "%s(%s)" (to_string t) (to_string u)
+    | App _ ->
+      let t, u =
+        let rec aux l t =
+          match t.term with
+          | App (t, u) -> aux (u::l) t
+          | _ -> t, l
+        in
+        aux [] t
+      in
+      Printf.sprintf "%s(%s)" (to_string t) (List.map to_string u |> String.concat ",")
     | Abs (x, a, t) -> Printf.sprintf "fun (%s : %s) -> %s" x (to_string a) (to_string t)
     | Pi (x, a, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
     | Sigma (x, a, l) -> Printf.sprintf "{ %s : %s | %s }" x (to_string a) (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
@@ -191,6 +200,7 @@ let rec conv (t:t) (u:t) =
   | _ when t = u -> true
   | Hole, _ | _, Hole -> true
   | Eq (t, u), Eq (t', u') -> conv t t' && conv u u'
+  | Hom (t, u), Hom (t', u') -> conv t t' && conv u u'
   | _ -> false
 
 exception Typing of Pos.t * string
@@ -275,7 +285,7 @@ and infer env tenv t : t =
             in
             aux (env,tenv) f
         )
-      | _ -> assert false
+      | a -> typing t.pos "Record expected but got %s." (to_string a)
     )
   | App (t, u) ->
     (
@@ -284,7 +294,7 @@ and infer env tenv t : t =
         check env tenv u a;
         let u = eval env u in
         eval ((x,u)::env') b
-      | _ -> assert false
+      | _ -> typing t.pos "Function expected."
     )
   | Obj -> Type
   | Hom (t, u) ->

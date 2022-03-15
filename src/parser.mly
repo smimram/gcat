@@ -15,9 +15,9 @@ let decl pos name args a t : Lang.Decl.t =
 %nonassoc TO
 %nonassoc EQUALS
 %right SC
+%nonassoc BANG
 %nonassoc LPAR
 %left DOT
-%nonassoc BANG
 
 %start main
 %type<Lang.Decl.t list> main

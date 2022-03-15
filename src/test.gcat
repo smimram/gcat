@@ -4,7 +4,7 @@
 
 trans (x : *) (y : *) (f : x -> y) (g : x -> y) (h : x -> y) (p : f == g) (q : g == h) : f == h = ?
 
-sym (x : *) (y : *) (f : x -> y) (g : x -> y) (p : f == g) : g == f = ?
+sym (x : *) (y : *) (f : x -> y) (g : x -> y) (p : g == f) : f == g = ?
 
 terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
 
@@ -12,4 +12,26 @@ terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == 
 
 iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
 
-terminal-unique (t : terminal) (u : terminal) : iso(t,u) = { u.arr(t), g = t.arr(u), sect = ?, retr = ? }
+terminal-iso (t : terminal) (u : terminal) : iso(t,u) =
+{ u.arr(t),
+  g = t.arr(u),
+  sect = trans(u, u, t.arr(!u);u.arr(!t), u.arr(u),id(u), u.eta(u,t.arr(!u);u.arr(!t)), sym(u, u, u.arr(!u), id(!u), u.eta(u, id(u)))),
+  retr = ?
+}
+
+prod (x : *) (y : *) =
+  { p : * |
+    fst : p -> x,
+    snd : p -> y,
+    cons : (z : *) (f : z -> x) (g : z -> y) => z -> p,
+    beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(z,f,g);fst == f,
+    beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(z,f,g);snd == g,
+    eta : (z : *) (h : z -> p) => cons(z,h;fst,h;snd) == h
+  }
+
+prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
+{ q.cons(p, p.snd, p.fst),
+  g = p.cons(q, q.snd, q.fst),
+  sect = ?,
+  retr = ?
+}
