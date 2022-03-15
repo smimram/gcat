@@ -2,6 +2,11 @@ module Pos = struct
   type t = Lexing.position * Lexing.position
 
   let dummy : t = Lexing.dummy_pos, Lexing.dummy_pos
+
+  let to_string (p1,p2) =
+    let open Lexing in
+    if p1.pos_lnum = p2.pos_lnum then Printf.sprintf "line %d, character %d-%d" p1.pos_lnum (p1.pos_cnum - p1.pos_bol) (p2.pos_cnum - p2.pos_bol)
+    else Printf.sprintf "from line %d, character %d to line %d character %d" p1.pos_lnum (p1.pos_cnum - p1.pos_bol) p2.pos_lnum (p2.pos_cnum - p2.pos_bol)
 end
 
 (** Terms. *)
@@ -172,8 +177,7 @@ let rec quote (t : t) : Term.t =
     let _, f = List.fold_left_map (fun env (l, a) -> (l, Var l)::env, (l, quote (eval env a))) env f in
     mk (Sigma (x', quote a, f))
   | Record _ -> failwith "TODO: record"
-  | Field (t, None) -> mk (Field (quote t, None))
-  | Field _ -> failwith "TODO: field"
+  | Field (t, l) -> mk (Field (quote t, l))
   | Type -> mk Type
   | Hole -> mk Hole
 
@@ -212,6 +216,8 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
         ) (env,env',tenv) uu bb
     in
     ()
+  | Hole, a ->
+    Printf.printf "? : %s\n%!" (to_string a)
   | _ ->
     let a' = infer env tenv t in
     if not (conv a a') then typing t.pos "Got %s but %s expected." (to_string a') (to_string a)
@@ -234,20 +240,23 @@ and infer env tenv t : t =
     let _ = List.fold_left (fun (env,tenv) (x, a) -> check env tenv a Type; ((x,Var x)::env, (x,eval env a)::tenv)) (env,tenv) f in
     Type
   | Field (t, l) ->
+    let tv = eval env t in
+    (* Printf.printf "field of %s\n%!" (to_string tv); *)
     (
       match infer env tenv t with
-      | Sigma (x, a, env, f) ->
+      | Sigma (x, a, env, f) as s ->
         (
           match l with
           | None -> a
           | Some l ->
-            let env = (x, Var x)::env in
+            Printf.printf "field %s of type %s\n%!" l (to_string s);
+            let env = (x, Field (tv, None))::env in
             let tenv = (x, a)::tenv in
             let rec aux (env,tenv) = function
               | (l', b)::_ when l' = l -> eval env b
               | (l, b)::f ->
                 let b = eval env b in
-                let env = (l, Var l)::env in
+                let env = (l, Field (tv, Some l))::env in
                 let tenv = (l,b)::tenv in
                 aux (env,tenv) f
               | [] -> assert false

@@ -1,5 +1,5 @@
 let () =
-  (* Printexc.record_backtrace true; *)
+  Printexc.record_backtrace true;
   let fname = Sys.argv.(1) in
   let ic = open_in fname in
   let lexbuf = Lexing.from_channel ic in
@@ -29,4 +29,7 @@ let () =
       failwith err
   in
   close_in ic;
-  Lang.Decl.check decls
+  try Lang.Decl.check decls
+  with Lang.Typing (pos, e) ->
+    let err = Printf.sprintf "Typing error at %s: %s." (Lang.Pos.to_string pos) e in
+    failwith err
