@@ -2,8 +2,12 @@
 
 -- pt (x : *) : point = { x, i = id(x) }
 
+eq-trans (x : *) (y : *) (f : x -> y) (g : x -> y) (h : x -> y) (p : f == g) (q : g == h) : f == h = ?
+
 terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
+
+terminal-id (x : terminal) : x.arr(x) == id(x) = eq-trans(x,x,?,?,?,?,?)
 
 iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
 
-terminal-unique (t : terminal) (u : terminal) : iso(!t,!u) = { u.arr(!t), g = t.arr(!u), sect = ?, retr = ? }
+terminal-unique (t : terminal) (u : terminal) : iso(t,u) = { u.arr(t), g = t.arr(u), sect = ?, retr = ? }

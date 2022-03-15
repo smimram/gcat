@@ -31,5 +31,6 @@ let () =
   close_in ic;
   try Lang.Decl.check decls
   with Lang.Typing (pos, e) ->
-    let err = Printf.sprintf "Typing error at %s: %s." (Lang.Pos.to_string pos) e in
-    failwith err
+    let bt = Printexc.get_raw_backtrace () in
+    Printf.printf "\nTyping error at %s:\n%s\n\n%s\n%!" (Lang.Pos.to_string pos) e (Printexc.raw_backtrace_to_string bt);
+    exit 1

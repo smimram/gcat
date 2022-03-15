@@ -14,7 +14,7 @@ module Term = struct
   type t =
     {
       pos : Pos.t;
-      term : term
+      mutable term : term
     }
 
   and term =
@@ -35,6 +35,8 @@ module Term = struct
     | Hole
 
   let make pos term = { pos; term }
+
+  let copy t = make t.pos t.term
 
   let app pos t l =
     let rec aux t = function
@@ -184,15 +186,19 @@ let rec quote (t : t) : Term.t =
 let to_string t = Term.to_string (quote t)
 
 (** Convertibility of terms. *)
-let conv (t:t) (u:t) =
-  t = u
+let rec conv (t:t) (u:t) =
+  match t, u with
+  | _ when t = u -> true
+  | Hole, _ | _, Hole -> true
+  | Eq (t, u), Eq (t', u') -> conv t t' && conv u u'
+  | _ -> false
 
 exception Typing of Pos.t * string
 
 let typing pos fmt = Printf.kprintf (fun s -> raise (Typing (pos, s))) fmt
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
-  Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a);
+  (* Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a); *)
   (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
   match t.term, a with
   | Abs (x, a, t), Pi (x', a', env', b) ->
@@ -220,11 +226,18 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     Printf.printf "? : %s\n%!" (to_string a)
   | _ ->
     let a' = infer env tenv t in
-    if not (conv a a') then typing t.pos "Got %s but %s expected." (to_string a') (to_string a)
+    if not (conv a a') then
+      (
+        match a' with
+        | Sigma _ ->
+          (* We can implicitly cast a record as its main field. *)
+          t.term <- Field (Term.copy t, None); check env tenv t a
+        | _ -> typing t.pos "Got %s but %s expected." (to_string a') (to_string a)
+      )
 
 and infer env tenv t : t =
-  Printf.printf "infer: %s\n%!" (Term.to_string t);
-  (* Printf.printf "infer: %s [%s]\n%!" (Term.to_string t) (env |> List.map fst |> String.concat ","); *)
+  (* Printf.printf "infer: %s\n%!" (Term.to_string t); *)
+  (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
   match t.term with
   | Var x ->
     (
@@ -244,12 +257,11 @@ and infer env tenv t : t =
     (* Printf.printf "field of %s\n%!" (to_string tv); *)
     (
       match infer env tenv t with
-      | Sigma (x, a, env, f) as s ->
+      | Sigma (x, a, env, f) ->
         (
           match l with
           | None -> a
           | Some l ->
-            Printf.printf "field %s of type %s\n%!" l (to_string s);
             let env = (x, Field (tv, None))::env in
             let tenv = (x, a)::tenv in
             let rec aux (env,tenv) = function
@@ -266,13 +278,12 @@ and infer env tenv t : t =
       | _ -> assert false
     )
   | App (t, u) ->
-    let a = infer env tenv u in
-    let u = eval env u in
     (
       match infer env tenv t with
-      | Pi (x, a', env, b) ->
-        assert (conv a a');
-        eval ((x,u)::env) b
+      | Pi (x, a, env', b) ->
+        check env tenv u a;
+        let u = eval env u in
+        eval ((x,u)::env') b
       | _ -> assert false
     )
   | Obj -> Type
