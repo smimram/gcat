@@ -3,7 +3,7 @@ let () =
   let fname = Sys.argv.(1) in
   let ic = open_in fname in
   let lexbuf = Lexing.from_channel ic in
-  let t =
+  let decls =
     try
       Parser.main Lexer.token lexbuf
     with
@@ -17,7 +17,7 @@ let () =
           err
       in
       failwith err
-    | Parsing.Parse_error ->
+    | Parsing.Parse_error | Parser.Error ->
       let pos = (Lexing.lexeme_end_p lexbuf) in
       let err =
         Printf.sprintf
@@ -29,4 +29,8 @@ let () =
       failwith err
   in
   close_in ic;
-  ignore (Lang.Decl.List.check [] t)
+  try Lang.Decl.check decls
+  with Lang.Typing (pos, e) ->
+    let bt = Printexc.get_raw_backtrace () in
+    Printf.printf "\nTyping error at %s:\n%s\n\n%s\n%!" (Lang.Pos.to_string pos) e (Printexc.raw_backtrace_to_string bt);
+    exit 1

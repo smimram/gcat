@@ -1,9 +1,13 @@
-cons terminal <: *
-cons tarr (x : *) (t : terminal()) : x -> t
-cons tarr-eta (x : *) (t : terminal()) (f : x -> t) : f == tarr(x,t)
+-- point = {x : * | i : x -> x}
 
-cons prod (x : *) (y : *) <: *
-cons fst (x : *) (y : *) (p : prod(x,y)) : p -> x
-cons snd (x : *) (y : *) (p : prod(x,y)) : p -> y
-cons pairing (x : *) (y : *) (z : *) (f : x -> y) (g : x -> z) (p : prod(x,y)) : x -> p
-cons pairing-beta-l (x : *) (y : *) (z : *) (f : x -> y) (g : x -> z) (p : prod(x,y)) : pairing(x,y,z,f,g,p);fst == f
+-- pt (x : *) : point = { x, i = id(x) }
+
+eq-trans (x : *) (y : *) (f : x -> y) (g : x -> y) (h : x -> y) (p : f == g) (q : g == h) : f == h = ?
+
+terminal = {t : * | arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) => f == arr(x)}
+
+terminal-id (x : terminal) : x.arr(x) == id(x) = eq-trans(x,x,?,?,?,?,?)
+
+iso (x : *) (y : *) = {f : x -> y | g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
+
+terminal-unique (t : terminal) (u : terminal) : iso(t,u) = { u.arr(t), g = t.arr(u), sect = ?, retr = ? }

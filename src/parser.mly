@@ -1,13 +1,23 @@
 %{
+open Lang.Term
+
+let decl pos name args a t : Lang.Decl.t =
+  name, pi pos args a, fct pos args t
 %}
 
-%token LPAR RPAR
-%token OBJ TO EQUALS SC
-%token CONS COLON LCOLON COMMA
+%token LPAR RPAR LACC RACC
+%token OBJ TO EQUALS ID SC HOLE
+%token EQ COLON COMMA PIPE IMP BANG DOT
 %token<string> IDENT
 %token EOF
 
+%right IMP
+%nonassoc TO
+%nonassoc EQUALS
 %right SC
+%nonassoc LPAR
+%left DOT
+%nonassoc BANG
 
 %start main
 %type<Lang.Decl.t list> main
@@ -21,25 +31,37 @@ decls:
    | { [] }
 
 decl:
-   | CONS IDENT args LCOLON typ { Type ($2, $3, $5) }
-   | CONS IDENT args COLON typ { Term ($2, $3, $5) }
+   | IDENT args COLON term EQ term { decl $loc $1 $2 $4 $6 }
+   | IDENT args EQ term { decl $loc $1 $2 (make $loc Type) $4 }
 
 args:
-   | LPAR IDENT COLON typ RPAR args { ($2,$4)::$6 }
+   | LPAR IDENT COLON term RPAR args { ($2,$4)::$6 }
    | { [] }
 
-typ:
-   | OBJ { Obj }
-   | term TO term { Hom ($1, $3) }
-   | IDENT LPAR terms RPAR { Cons ($1, $3) }
-   | term EQUALS term { Eq ($1, $3) }
-
 term:
-   | IDENT { Var $1 }
-   | IDENT LPAR terms RPAR { Cons ($1, $3) }
-   | term SC term { Comp ($1, $3) }
+   | IDENT { make $loc (Var $1) }
+   | LACC IDENT COLON term PIPE sigma_fields RACC { make $loc (Sigma ($2, $4, $6)) }
+   | LACC term record_fields RACC { make $loc (Record ($2, $3)) }
+   | OBJ { make $loc Obj }
+   | args IMP term { pi $loc $1 $3 }
+   | term TO term { make $loc (Hom ($1, $3)) }
+   | term EQUALS term { make $loc (Eq ($1, $3)) }
+   | term LPAR terms RPAR { app $loc $1 $3 }
+   | ID LPAR term RPAR { make $loc (Id ($3)) }
+   | term SC term { make $loc (Comp ($1, $3)) }
+   | HOLE { make $loc Hole }
+   | BANG term { make $loc (Field ($2, None)) }
+   | term DOT IDENT { make $loc (Field ($1, Some $3)) }
 
 terms:
    | { [] }
    | term { [$1] }
    | term COMMA terms { $1::$3 }
+
+sigma_fields:
+  | IDENT COLON term COMMA sigma_fields { ($1,$3)::$5 }
+  | IDENT COLON term { [$1,$3] }
+
+record_fields:
+  | COMMA IDENT EQ term record_fields { ($2,$4)::$5 }
+  | { [] }
