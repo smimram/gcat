@@ -7,7 +7,7 @@ let decl pos name args a t : Lang.Decl.t =
 
 %token LPAR RPAR LACC RACC
 %token OBJ TO EQUALS ID SC HOLE
-%token EQ COLON COMMA PIPE IMP BANG DOT
+%token EQ COLON COMMA IMP BANG DOT
 %token<string> IDENT
 %token EOF
 
@@ -40,8 +40,8 @@ args:
 
 term:
    | IDENT { make $loc (Var $1) }
-   | LACC IDENT COLON term PIPE sigma_fields RACC { make $loc (Sigma ($2, $4, $6)) }
-   | LACC term record_fields RACC { make $loc (Record ($2, $3)) }
+   | LACC sigma_fields RACC { make $loc (Sigma ($2)) }
+   | LACC record_fields RACC { make $loc (Record ($2)) }
    | OBJ { make $loc Obj }
    | args IMP term { pi $loc $1 $3 }
    | term TO term { make $loc (Hom ($1, $3)) }
@@ -50,8 +50,8 @@ term:
    | ID LPAR term RPAR { make $loc (Id ($3)) }
    | term SC term { make $loc (Comp ($1, $3)) }
    | HOLE { make $loc Hole }
-   | BANG term { make $loc (Field ($2, None)) }
-   | term DOT IDENT { make $loc (Field ($1, Some $3)) }
+   | BANG term { make $loc (Field ($2, "")) }
+   | term DOT IDENT { make $loc (Field ($1, $3)) }
 
 terms:
    | { [] }
@@ -63,5 +63,5 @@ sigma_fields:
   | IDENT COLON term { [$1,$3] }
 
 record_fields:
-  | COMMA IDENT EQ term record_fields { ($2,$4)::$5 }
-  | { [] }
+  | IDENT EQ term COMMA record_fields { ($1,$3)::$5 }
+  | IDENT EQ term { [$1,$3] }

@@ -28,9 +28,9 @@ module Term = struct
     | App of t * t
     | Abs of string * t * t
     | Pi of string * t * t (** A pi type. *)
-    | Sigma of string * t * (string * t) list (** A sigma type. *)
-    | Record of t * (string * t) list
-    | Field of t * string option
+    | Sigma of (string * t) list (** A sigma type (record). *)
+    | Record of (string * t) list
+    | Field of t * string
     | Type
     | Hole
 
@@ -79,10 +79,10 @@ module Term = struct
       Printf.sprintf "%s(%s)" (to_string t) (List.map to_string u |> String.concat ", ")
     | Abs (x, a, t) -> Printf.sprintf "fun (%s : %s) -> %s" x (to_string a) (to_string t)
     | Pi (x, a, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
-    | Sigma (x, a, l) -> Printf.sprintf "{ %s : %s | %s }" x (to_string a) (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
-    | Record (t, l) -> Printf.sprintf "{%s, %s}" (to_string t) (List.map (fun (l,t) -> l ^ " = " ^ to_string t) l |> String.concat ", ")
-    | Field (t, None) -> Printf.sprintf "!%s" (to_string t)
-    | Field (t, Some l) -> Printf.sprintf "%s.%s" (to_string t) l
+    | Sigma l -> Printf.sprintf "{ %s }" (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
+    | Record l -> Printf.sprintf "{%s}" (List.map (fun (l,t) -> l ^ " = " ^ to_string t) l |> String.concat ", ")
+    | Field (t, "") -> Printf.sprintf "!%s" (to_string t)
+    | Field (t, l) -> Printf.sprintf "%s.%s" (to_string t) l
     | Type -> "Type"
     | Hole -> "?"
 end
@@ -97,9 +97,9 @@ type t =
   | App of t * t list
   | Abs of string * environment * Term.t
   | Pi of string * t * environment * Term.t
-  | Sigma of string * t * environment * (string * Term.t) list
-  | Field of t * string option
-  | Record of t * (string * t) list
+  | Sigma of environment * (string * Term.t) list
+  | Record of (string * t) list
+  | Field of t * string
   | Type
   | Hole
 
@@ -145,18 +145,14 @@ let rec eval (env : environment) (t : Term.t) : t =
     )
   | Abs (x, _, t) -> Abs (x, env, t)
   | Pi (x, a, b) -> Pi (x, eval env a, env, b)
-  | Sigma (x, a, f) ->
-    Sigma (x, eval env a, env, f)
-  | Record (t, l) -> Record (eval env t, List.map (fun (l, t) -> l, eval env t) l)
+  | Sigma f -> Sigma (env, f)
+  | Record l -> Record (List.map (fun (l, t) -> l, eval env t) l)
   | Field (t, l) ->
     (
       match eval env t with
-      | Record (v, f) ->
-        (
-          match l with
-          | None -> v
-          | Some l -> List.assoc l f
-        )
+      | Record f ->
+        if l = "" then List.hd f |> snd
+        else List.assoc l f
       | t -> Field (t, l)
     )
   | Type -> Type
@@ -182,11 +178,9 @@ let rec quote (t : t) : Term.t =
   | Pi (x, a, env, t) ->
     let x' = fresh () in
     mk (Pi (x', quote a, quote (eval ((x, Var x')::env) t)))
-  | Sigma (x, a, env, f) ->
-    let x' = fresh () in
-    let env = (x, Var x')::env in
+  | Sigma (env, f) ->
     let _, f = List.fold_left_map (fun env (l, a) -> (l, Var l)::env, (l, quote (eval env a))) env f in
-    mk (Sigma (x', quote a, f))
+    mk (Sigma f)
   | Record _ -> failwith "TODO: record"
   | Field (t, l) -> mk (Field (quote t, l))
   | Type -> mk Type
@@ -216,12 +210,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     assert (conv a a');
     let b = eval ((x', Var x)::env') b in
     check ((x, Var x)::env) ((x, a)::tenv) t b
-  | Record (t, uu), Sigma (x, a, env', bb) ->
-    check env tenv t a;
-    let t = eval env t in
-    let env = (x, t)::env in
-    let env' = (x, t)::env' in
-    let tenv = (x,a)::tenv in
+  | Record tt, Sigma (env', aa) ->
     let _ =
       List.fold_left2
         (fun (env,env',tenv) (l,u) (l',a) ->
@@ -229,7 +218,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
            let a = eval env' a in
            check env tenv u a;
            (l, eval env u)::env, (l, eval env u)::env', (l, a)::tenv
-        ) (env,env',tenv) uu bb
+        ) (env,env',tenv) tt aa
     in
     ()
   | Hole, a ->
@@ -241,13 +230,14 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
         match a' with
         | Sigma _ ->
           (* We can implicitly cast a record as its main field. *)
-          t.term <- Field (Term.copy t, None); check env tenv t a
+          t.term <- Field (Term.copy t, ""); check env tenv t a
         | _ -> typing t.pos "Got %s but %s expected." (to_string a') (to_string a)
       )
 
 and infer env tenv t : t =
   (* Printf.printf "infer: %s\n%!" (Term.to_string t); *)
   (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
+  let t0 = t in
   match t.term with
   | Var x ->
     (
@@ -255,36 +245,34 @@ and infer env tenv t : t =
       | Some a -> a
       | None -> raise (Typing (t.pos, "Variable not found: " ^ x))
     )
-  | Sigma (x, a, f) ->
-    check env tenv a Type;
-    let a = eval env a in
-    let env = (x, Var x)::env in
-    let tenv = (x, a)::tenv in
-    let _ = List.fold_left (fun (env,tenv) (x, a) -> check env tenv a Type; ((x,Var x)::env, (x,eval env a)::tenv)) (env,tenv) f in
+  | Sigma f ->
+    let _ = List.fold_left (fun (env, tenv) (l, a) -> check env tenv a Type; ((l, Var l)::env, (l, eval env a)::tenv)) (env, tenv) f in
     Type
   | Field (t, l) ->
     let tv = eval env t in
     (* Printf.printf "field of %s\n%!" (to_string tv); *)
     (
       match infer env tenv t with
-      | Sigma (x, a, env, f) ->
-        (
-          match l with
-          | None -> a
-          | Some l ->
-            let env = (x, Field (tv, None))::env in
-            let tenv = (x, a)::tenv in
-            let rec aux (env,tenv) = function
-              | (l', b)::_ when l' = l -> eval env b
-              | (l, b)::f ->
-                let b = eval env b in
-                let env = (l, Field (tv, Some l))::env in
-                let tenv = (l,b)::tenv in
-                aux (env,tenv) f
-              | [] -> assert false
-            in
+      | Sigma (env, f) ->
+        (* Resolve default field. *)
+        let l =
+          if l = "" then
+            let l = List.hd f |> fst in
+            t0.term <- Field (t, l);
+            l
+          else
+            l
+        in
+        let rec aux (env,tenv) = function
+          | (l', b)::_ when l' = l -> eval env b
+          | (l, b)::f ->
+            let b = eval env b in
+            let env = (l, Field (tv, l))::env in
+            let tenv = (l,b)::tenv in
             aux (env,tenv) f
-        )
+          | [] -> assert false
+        in
+        aux (env,tenv) f
       | a -> typing t.pos "Record expected but got %s." (to_string a)
     )
   | App (t, u) ->
