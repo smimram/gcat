@@ -8,7 +8,7 @@
 
 terminal = {t : *, arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) (g : x -> t) => f == g}
 
-iso (x : *) (y : *) = {f : x -> y, g : y -> x, sect : g;f == id(_), retr : f;g == id(x)}
+iso (x : *) (y : *) = {f : x -> y, g : y -> x, sect : g;f == id(_), retr : f;g == id(_)}
 
 terminal-iso (t : terminal) (u : terminal) : iso(t,u) =
   { f = u.arr(t),
@@ -22,8 +22,8 @@ prod (x : *) (y : *) =
     fst : p -> x,
     snd : p -> y,
     cons : (z : *) (f : z -> x) (g : z -> y) => z -> p,
-    beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(z,f,g);fst == f,
-    beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(z,f,g);snd == g,
+    beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(_,f,g);fst == f,
+    beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(_,f,g);snd == g,
     eta : (z : *) (h : z -> p) => cons(z, h;fst, h;snd) == h
   }
 

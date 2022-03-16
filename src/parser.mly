@@ -54,7 +54,7 @@ term:
    | HOLE { make $loc Hole }
    | BANG term { make $loc (Field ($2, "")) }
    | term DOT IDENT { make $loc (Field ($1, $3)) }
-   | META { make $loc Meta }
+   | META { make $loc (Meta (ref None)) }
 
 terms:
    | { [] }

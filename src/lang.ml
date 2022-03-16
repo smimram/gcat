@@ -32,7 +32,7 @@ module Term = struct
     | Field of t * string
     | Type
     | Hole
-    | Meta (** A metavariable. *)
+    | Meta of t option ref (** A metavariable. *)
 
   let make pos term = { pos; term }
 
@@ -85,7 +85,8 @@ module Term = struct
     | Field (t, l) -> Printf.sprintf "%s.%s" (to_string t) l
     | Type -> "Type"
     | Hole -> "?"
-    | Meta -> "_"
+    | Meta {contents = None} -> "_"
+    | Meta {contents = Some t} -> Printf.sprintf "[%s]" (to_string t)
 end
 
 type t =
@@ -103,7 +104,7 @@ type t =
   | Field of t * string
   | Type
   | Hole
-  | Meta of [ `Free of environment | `Link of t ] ref
+  | Meta of environment * Term.t option ref
 
 (** An environment. *)
 and environment = (string * t) list
@@ -159,7 +160,7 @@ let rec eval (env : environment) (t : Term.t) : t =
     )
   | Type -> Type
   | Hole -> Hole
-  | Meta -> Meta (ref (`Free env))
+  | Meta m -> Meta (env, m)
 
 let fresh =
   let n = ref (-1) in
@@ -188,8 +189,7 @@ let rec quote (t : t) : Term.t =
   | Field (t, l) -> mk (Field (quote t, l))
   | Type -> mk Type
   | Hole -> mk Hole
-  | Meta {contents = `Free _} -> mk Meta
-  | Meta {contents = `Link t} -> quote t
+  | Meta (_,m) -> mk (Meta m)
 
 let to_string t = Term.to_string (quote t)
 
@@ -199,16 +199,10 @@ let rec conv (t:t) (u:t) =
   match t, u with
   | _ when t = u -> true
   | Hole, _ | _, Hole -> true
-  | Meta {contents = `Link t}, u -> conv t u
-  | t, Meta {contents = `Link u} -> conv t u
-  | Meta ({contents = `Free env} as r), u ->
-    let t' = eval env (quote u) in
-    Printf.printf "meta becomes %s\n%!" (to_string t');
-    r := `Link t'; conv t u
-  | t, Meta ({contents = `Free env} as r) ->
-    let u' = eval env (quote t) in
-    Printf.printf "meta becomes %s\n%!" (to_string u');
-    r := `Link u'; conv t u
+  | Meta (env, {contents = Some t}), u -> conv (eval env t) u
+  | t, Meta (env, {contents = Some u}) -> conv t (eval env u)
+  | Meta (_, m), u -> m := Some (quote u); conv t u
+  | t, Meta (_, m) -> m := Some (quote t); conv t u
   | Eq (t, u), Eq (t', u') -> conv t t' && conv u u'
   | Hom (t, u), Hom (t', u') -> conv t t' && conv u u'
   | Id t, Id u -> conv t u
@@ -220,7 +214,7 @@ exception Typing of Pos.t * string
 let typing pos fmt = Printf.kprintf (fun s -> raise (Typing (pos, s))) fmt
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
-  Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a);
+  (* Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a); *)
   (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
   match t.term, a with
   | Abs (x, a, t), Pi (x', a', env', b) ->
@@ -241,7 +235,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     ()
   | Hole, a ->
     Printf.printf "? : %s\n%!" (to_string a)
-  | Meta, _ -> ()
+  | Meta _, _ -> ()
   | _ ->
     let a' = infer env tenv t in
     if not (conv a a') then
