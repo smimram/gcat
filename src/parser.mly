@@ -6,7 +6,7 @@ let decl pos name args a t : Lang.Decl.t =
 %}
 
 %token LPAR RPAR LACC RACC
-%token OBJ TO EQUALS ID SC HOLE
+%token OBJ TO EQUALS ID SC HOLE META
 %token EQ COLON COMMA IMP BANG DOT
 %token<string> IDENT
 %token EOF
@@ -54,6 +54,7 @@ term:
    | HOLE { make $loc Hole }
    | BANG term { make $loc (Field ($2, "")) }
    | term DOT IDENT { make $loc (Field ($1, $3)) }
+   | META { make $loc Meta }
 
 terms:
    | { [] }

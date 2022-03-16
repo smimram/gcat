@@ -32,6 +32,7 @@ module Term = struct
     | Field of t * string
     | Type
     | Hole
+    | Meta (** A metavariable. *)
 
   let make pos term = { pos; term }
 
@@ -84,6 +85,7 @@ module Term = struct
     | Field (t, l) -> Printf.sprintf "%s.%s" (to_string t) l
     | Type -> "Type"
     | Hole -> "?"
+    | Meta -> "_"
 end
 
 type t =
@@ -101,6 +103,7 @@ type t =
   | Field of t * string
   | Type
   | Hole
+  | Meta of [ `Free of environment | `Link of t ]
 
 (** An environment. *)
 and environment = (string * t) list
@@ -156,6 +159,7 @@ let rec eval (env : environment) (t : Term.t) : t =
     )
   | Type -> Type
   | Hole -> Hole
+  | Meta -> Meta (`Free env)
 
 let fresh =
   let n = ref (-1) in
@@ -184,6 +188,8 @@ let rec quote (t : t) : Term.t =
   | Field (t, l) -> mk (Field (quote t, l))
   | Type -> mk Type
   | Hole -> mk Hole
+  | Meta (`Free _) -> mk Meta
+  | Meta (`Link t) -> quote t
 
 let to_string t = Term.to_string (quote t)
 

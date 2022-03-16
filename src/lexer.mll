@@ -18,6 +18,7 @@ rule token = parse
   | "!" { BANG }
   | "." { DOT }
   | "?" { HOLE }
+  | "_" { META }
   | "=>" { IMP }
   | "=" { EQ }
   | "==" { EQUALS }
