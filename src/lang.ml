@@ -195,13 +195,24 @@ let to_string t = Term.to_string (quote t)
 
 (** Convertibility of terms. *)
 let rec conv (t:t) (u:t) =
+  (* Printf.printf "conv %s vs %s\n%!" (to_string t) (to_string u); *)
   match t, u with
   | _ when t = u -> true
   | Hole, _ | _, Hole -> true
   | Meta {contents = `Link t}, u -> conv t u
   | t, Meta {contents = `Link u} -> conv t u
+  | Meta ({contents = `Free env} as r), u ->
+    let t' = eval env (quote u) in
+    Printf.printf "meta becomes %s\n%!" (to_string t');
+    r := `Link t'; conv t u
+  | t, Meta ({contents = `Free env} as r) ->
+    let u' = eval env (quote t) in
+    Printf.printf "meta becomes %s\n%!" (to_string u');
+    r := `Link u'; conv t u
   | Eq (t, u), Eq (t', u') -> conv t t' && conv u u'
   | Hom (t, u), Hom (t', u') -> conv t t' && conv u u'
+  | Id t, Id u -> conv t u
+  | App(t, tt), App(u, uu) -> List.length tt = List.length uu && conv t u && List.for_all2 conv tt uu
   | _ -> false
 
 exception Typing of Pos.t * string
