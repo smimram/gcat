@@ -103,7 +103,7 @@ type t =
   | Field of t * string
   | Type
   | Hole
-  | Meta of [ `Free of environment | `Link of t ]
+  | Meta of [ `Free of environment | `Link of t ] ref
 
 (** An environment. *)
 and environment = (string * t) list
@@ -159,7 +159,7 @@ let rec eval (env : environment) (t : Term.t) : t =
     )
   | Type -> Type
   | Hole -> Hole
-  | Meta -> Meta (`Free env)
+  | Meta -> Meta (ref (`Free env))
 
 let fresh =
   let n = ref (-1) in
@@ -188,8 +188,8 @@ let rec quote (t : t) : Term.t =
   | Field (t, l) -> mk (Field (quote t, l))
   | Type -> mk Type
   | Hole -> mk Hole
-  | Meta (`Free _) -> mk Meta
-  | Meta (`Link t) -> quote t
+  | Meta {contents = `Free _} -> mk Meta
+  | Meta {contents = `Link t} -> quote t
 
 let to_string t = Term.to_string (quote t)
 
@@ -198,6 +198,8 @@ let rec conv (t:t) (u:t) =
   match t, u with
   | _ when t = u -> true
   | Hole, _ | _, Hole -> true
+  | Meta {contents = `Link t}, u -> conv t u
+  | t, Meta {contents = `Link u} -> conv t u
   | Eq (t, u), Eq (t', u') -> conv t t' && conv u u'
   | Hom (t, u), Hom (t', u') -> conv t t' && conv u u'
   | _ -> false
@@ -207,7 +209,7 @@ exception Typing of Pos.t * string
 let typing pos fmt = Printf.kprintf (fun s -> raise (Typing (pos, s))) fmt
 
 let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
-  (* Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a); *)
+  Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a);
   (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
   match t.term, a with
   | Abs (x, a, t), Pi (x', a', env', b) ->
@@ -228,6 +230,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
     ()
   | Hole, a ->
     Printf.printf "? : %s\n%!" (to_string a)
+  | Meta, _ -> ()
   | _ ->
     let a' = infer env tenv t in
     if not (conv a a') then

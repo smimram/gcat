@@ -8,7 +8,7 @@
 
 terminal = {t : *, arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) (g : x -> t) => f == g}
 
-iso (x : *) (y : *) = {f : x -> y, g : y -> x, sect : g;f == id(y), retr : f;g == id(x)}
+iso (x : *) (y : *) = {f : x -> y, g : y -> x, sect : g;f == id(_), retr : f;g == id(x)}
 
 terminal-iso (t : terminal) (u : terminal) : iso(t,u) =
   { f = u.arr(t),
