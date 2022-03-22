@@ -14,6 +14,8 @@ rule token = parse
   | ")" { RPAR }
   | "{" { LACC }
   | "}" { RACC }
+  | "[" { LSQB }
+  | "]" { RSQB }
   | "," { COMMA }
   | "!" { BANG }
   | "." { DOT }

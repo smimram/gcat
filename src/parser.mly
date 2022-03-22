@@ -5,7 +5,7 @@ let decl pos name args a t : Lang.Decl.t =
   name, pi pos args a, fct pos args t
 %}
 
-%token LPAR RPAR LACC RACC
+%token LPAR RPAR LACC RACC LSQB RSQB
 %token OBJ TO EQUALS ID SC HOLE META
 %token EQ COLON COMMA IMP BANG DOT
 %token<string> IDENT
@@ -37,7 +37,8 @@ decl:
    | IDENT args EQ term { decl $loc $1 $2 (make $loc Type) $4 }
 
 args:
-   | LPAR IDENT COLON term RPAR args { ($2,$4)::$6 }
+   | LPAR IDENT COLON term RPAR args { ($2,$4,`Mandatory)::$6 }
+   | LSQB IDENT COLON term RSQB args { ($2,$4,`Implicit)::$6 }
    | { [] }
 
 term:

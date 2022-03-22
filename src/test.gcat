@@ -21,15 +21,15 @@ prod (x : *) (y : *) =
   { p : *,
     fst : p -> x,
     snd : p -> y,
-    cons : (z : *) (f : z -> x) (g : z -> y) => z -> p,
-    beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(_,f,g);fst == f,
-    beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(_,f,g);snd == g,
-    eta : (z : *) (h : z -> p) => cons(z, h;fst, h;snd) == h
+    cons : [z : *] (f : z -> x) (g : z -> y) => z -> p,
+    beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(f,g);fst == f,
+    beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(f,g);snd == g,
+    eta : (z : *) (h : z -> p) => cons(h;fst, h;snd) == h
   }
 
 prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
-  { f = q.cons(p, p.snd, p.fst),
-    g = p.cons(q, q.snd, q.fst),
+  { f = q.cons(p.snd, p.fst),
+    g = p.cons(q.snd, q.fst),
     sect = ?,
     retr = ?
   }

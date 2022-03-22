@@ -72,8 +72,8 @@ let () =
           let f = term (Var f) in
           let rec search (f : Term.t) : Term.t list =
             match infer !env !tenv f with
-            | Pi (_, a, _, _) ->
-              let ff = List.filter_map (fun (t, (_, a')) -> if conv a' a then Some (term (App (f, t))) else None) !state in
+            | Pi (_, a, _, _, _) ->
+              let ff = List.filter_map (fun (t, (_, a')) -> if conv a' a then Some (term (App (f, `Any, t))) else None) !state in
               List.map search ff |> List.flatten
             | _ -> [f]
           in

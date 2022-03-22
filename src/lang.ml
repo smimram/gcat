@@ -24,9 +24,9 @@ module Term = struct
     | Obj (** An object. *)
     | Hom of t * t (** A morphism. *)
     | Eq of t * t (** An equality between parallel morphisms. *)
-    | App of t * t
+    | App of t * [`Mandatory | `Any] * t (** Apply a function to an argument. *)
     | Abs of string * t * t
-    | Pi of string * t * t (** A pi type. *)
+    | Pi of string * t * [`Implicit | `Mandatory] * t (** A pi type. *)
     | Sigma of (string * t) list (** A sigma type (record). *)
     | Record of (string * t) list
     | Field of t * string
@@ -41,21 +41,21 @@ module Term = struct
   let app pos t l =
     let rec aux t = function
       | [] -> t
-      | u::l -> aux (make pos (App (t, u))) l
+      | u::l -> aux (make pos (App (t, `Mandatory, u))) l
     in
     aux t l
 
   let pi pos args b =
     let rec aux = function
       | [] -> b
-      | (x,a)::l -> make pos (Pi (x, a, aux l))
+      | (x,a,o)::l -> make pos (Pi (x, a, o, aux l))
     in
     aux args
 
   let fct pos args t =
     let rec aux = function
       | [] -> t
-      | (x,a)::l -> make pos (Abs (x, a, aux l))
+      | (x,a,_)::l -> make pos (Abs (x, a, aux l))
     in
     aux args
 
@@ -71,14 +71,15 @@ module Term = struct
       let t, u =
         let rec aux l t =
           match t.term with
-          | App (t, u) -> aux (u::l) t
+          | App (t, _, u) -> aux (u::l) t
           | _ -> t, l
         in
         aux [] t
       in
       Printf.sprintf "%s(%s)" (to_string t) (List.map to_string u |> String.concat ", ")
     | Abs (x, a, t) -> Printf.sprintf "fun (%s : %s) -> %s" x (to_string a) (to_string t)
-    | Pi (x, a, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
+    | Pi (x, a, `Mandatory, b) -> Printf.sprintf "(%s : %s) => %s" x (to_string a) (to_string b)
+    | Pi (x, a, `Implicit, b) -> Printf.sprintf "[%s : %s] => %s" x (to_string a) (to_string b)
     | Sigma l -> Printf.sprintf "{ %s }" (List.map (fun (l,a) -> l ^ " : " ^ to_string a) l |> String.concat ", ")
     | Record l -> Printf.sprintf "{%s}" (List.map (fun (l,t) -> l ^ " = " ^ to_string t) l |> String.concat ", ")
     | Field (t, "") -> Printf.sprintf "!%s" (to_string t)
@@ -98,7 +99,7 @@ type t =
   | Eq of t * t
   | App of t * t list
   | Abs of string * environment * Term.t
-  | Pi of string * t * environment * Term.t
+  | Pi of string * t * [`Implicit | `Mandatory] * environment * Term.t
   | Sigma of environment * (string * Term.t) list
   | Record of (string * t) list
   | Field of t * string
@@ -137,7 +138,7 @@ let rec eval (env : environment) (t : Term.t) : t =
   | Obj -> Obj
   | Hom (t, u) -> Hom (eval env t, eval env u)
   | Eq (t, u) -> Eq (eval env t, eval env u)
-  | App (t, u) ->
+  | App (t, _, u) ->
     let t = eval env t in
     let u = eval env u in
     (
@@ -147,7 +148,7 @@ let rec eval (env : environment) (t : Term.t) : t =
       | _ -> App (t, [u])
     )
   | Abs (x, _, t) -> Abs (x, env, t)
-  | Pi (x, a, b) -> Pi (x, eval env a, env, b)
+  | Pi (x, a, o, b) -> Pi (x, eval env a, o, env, b)
   | Sigma f -> Sigma (env, f)
   | Record l -> Record (List.map (fun (l, t) -> l, eval env t) l)
   | Field (t, l) ->
@@ -177,11 +178,11 @@ let rec quote (t : t) : Term.t =
   | Obj -> mk Obj
   | Hom (t, u) -> mk (Hom (quote t, quote u))
   | Eq (t, u) -> mk (Eq (quote t, quote u))
-  | App (t, uu) -> List.fold_right (fun u t -> mk (App (t, quote u))) uu (quote t)
+  | App (t, uu) -> List.fold_right (fun u t -> mk (App (t, `Any, quote u))) uu (quote t)
   | Abs _ -> failwith "TODO: abs"
-  | Pi (x, a, env, t) ->
+  | Pi (x, a, o, env, t) ->
     let x' = fresh () in
-    mk (Pi (x', quote a, quote (eval ((x, Var x')::env) t)))
+    mk (Pi (x', quote a, o, quote (eval ((x, Var x')::env) t)))
   | Sigma (env, f) ->
     let _, f = List.fold_left_map (fun env (l, a) -> (l, Var l)::env, (l, quote (eval env a))) env f in
     mk (Sigma f)
@@ -217,7 +218,7 @@ let rec check (env:environment) (tenv:context) (t:Term.t) (a:t) =
   (* Printf.printf "check: %s : %s\n%!" (Term.to_string t) (to_string a); *)
   (* Printf.printf "       [%s]\n%!" (env |> List.map fst |> String.concat ", "); *)
   match t.term, a with
-  | Abs (x, a, t), Pi (x', a', env', b) ->
+  | Abs (x, a, t), Pi (x', a', _, env', b) ->
     let a = eval env a in
     assert (conv a a');
     let b = eval ((x', Var x)::env') b in
@@ -288,13 +289,17 @@ and infer env tenv t : t =
         aux (env,tenv) f
       | a -> typing t.pos "Record expected but got %s." (to_string a)
     )
-  | App (t, u) ->
+  | App (t, o, u) ->
     (
       match infer env tenv t with
-      | Pi (x, a, env', b) ->
+      | Pi (x, a, o', env', b) when o = `Any || (o = `Mandatory && o' = `Mandatory) ->
         check env tenv u a;
         let u = eval env u in
         eval ((x,u)::env') b
+      | Pi _ ->
+        (* Insert implicit arguments. *)
+        t.term <- App (Term.copy t, `Any, Term.make t.pos (Term.Meta (ref None)));
+        infer env tenv t0
       | _ -> typing t.pos "Function expected."
     )
   | Obj -> Type
@@ -321,7 +326,7 @@ and infer env tenv t : t =
         Hom (x, z)
       | _ -> assert false
     )
-  | Pi (x, a, b) ->
+  | Pi (x, a, _, b) ->
     check env tenv a Type;
     check ((x,Var x)::env) ((x,eval env a)::tenv) b Type;
     Type
