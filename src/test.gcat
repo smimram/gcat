@@ -6,15 +6,15 @@
 
 -- sym (x : *) (y : *) (f : x -> y) (g : x -> y) (p : g == f) : f == g = ?
 
-terminal = {t : *, arr : (x : *) => x -> t, eta : (x : *) (f : x -> t) (g : x -> t) => f == g}
+terminal = {t : *, arr : (x : *) => x -> t, eta : [x : *] (f : x -> t) (g : x -> t) => f == g}
 
 iso (x : *) (y : *) = {f : x -> y, g : y -> x, sect : g;f == id(_), retr : f;g == id(_)}
 
 terminal-iso (t : terminal) (u : terminal) : iso(t,u) =
   { f = u.arr(t),
     g = t.arr(u),
-    sect = u.eta(u, t.arr(u) ; u.arr(t), id(u)),
-    retr = t.eta(t, u.arr(t) ; t.arr(u), id(t))
+    sect = u.eta(t.arr(u) ; u.arr(t), id(u)),
+    retr = t.eta(u.arr(t) ; t.arr(u), id(t))
   }
 
 prod (x : *) (y : *) =
@@ -22,9 +22,9 @@ prod (x : *) (y : *) =
     fst : p -> x,
     snd : p -> y,
     cons : [z : *] (f : z -> x) (g : z -> y) => z -> p,
-    beta-l : (z : *) (f : z -> x) (g : z -> y) => cons(f,g);fst == f,
-    beta-r : (z : *) (f : z -> x) (g : z -> y) => cons(f,g);snd == g,
-    eta : (z : *) (h : z -> p) => cons(h;fst, h;snd) == h
+    beta-l : [z : *] (f : z -> x) (g : z -> y) => cons(f,g);fst == f,
+    beta-r : [z : *] (f : z -> x) (g : z -> y) => cons(f,g);snd == g,
+    eta : [z : *] (h : z -> p) => cons(h;fst, h;snd) == h
   }
 
 prod-sym (x : *) (y : *) (p : prod(x,y)) (q : prod(y,x)) : iso (p, q) =
@@ -39,8 +39,8 @@ pullback (x : *) (y : *) (z : *) (f : x -> z) (g : y -> z) =
     fst : p -> x,
     snd : p -> y,
     eq : fst ; f == snd ; g,
-    cons : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => z -> p,
-    beta-l : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => cons(z, f', g', e) ; fst == f',
-    beta-r : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => cons(z, f', g', e) ; snd == g',
-    eta : (z : *) (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) (h : z -> p) => cons(z, h ; fst, h ; snd, ?) == h
+    cons : [z : *] (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => z -> p,
+    beta-l : [z : *] (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => cons(f', g', e) ; fst == f',
+    beta-r : [z : *] (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) => cons(f', g', e) ; snd == g',
+    eta : [z : *] (f' : z -> x) (g' : z -> y) (e : f' ; f == g' ; g) (h : z -> p) => cons(h ; fst, h ; snd, ?) == h
   }
